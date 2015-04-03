@@ -4,10 +4,11 @@ from __future__ import unicode_literals
 from datetime import datetime
 import hashlib
 import logging
-import ldap
+import ldap3
+import ldap3.utils.dn
 import os
 from base64 import b64encode
-from six import text_type
+from six import text_type, iteritems
 from django.db import models
 from django.conf import settings
 from django.core.cache import cache
@@ -283,7 +284,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                     user.last_login = datetime(9999, 1, 1)
 
                     user.save()
-            except (ldap.INVALID_DN_SYNTAX, ldap.NO_SUCH_OBJECT):
+            except (ldap3.LDAPInvalidDNSyntaxResult, ldap3.LDAPNoSuchObjectResult):
                 raise User.DoesNotExist(
                     "`User` with DN '{}' does not exist.".format(dn)
                 )
@@ -318,7 +319,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                               "iodineUidNumber={}".format(id),
                               ['dn'])
             if len(result) == 1:
-                dn = result[0][0]
+                dn = result[0]['dn']
             else:
                 logger.debug("No such User with ID {}.".format(id))
                 dn = None
@@ -328,11 +329,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     @staticmethod
     def dn_from_username(username):
         # logger.debug("Fetching DN of User with username {}.".format(username))
-        return "iodineUid=" + ldap.dn.escape_dn_chars(username) + "," + settings.USER_DN
+        return "iodineUid=" + ldap3.utils.dn.escape_attribute_value(username) + "," + settings.USER_DN
 
     @staticmethod
     def username_from_dn(dn):
         # logger.debug("Fetching username of User with ID {}.".format(id))
+        # FIXME: figure out ldap3 equivalent
         return ldap.dn.str2dn(dn)[0][0][1]
 
     @staticmethod
@@ -368,7 +370,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             return identifier
         signer = Signer()
         signed = signer.sign(identifier)
-        hash = hashlib.sha1(signed)
+        hash = hashlib.sha1(signed.encode())
         return hash.hexdigest()
 
     def member_of(self, group):
@@ -782,7 +784,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                     data = results[0][1]['jpegPhoto'][0]
                 else:
                     data = None
-            except (ldap.NO_SUCH_OBJECT, KeyError):
+            except (ldap3.LDAPNoSuchObjectResult, KeyError):
                 data = None
 
             cache.set(key, data,
@@ -881,7 +883,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
             photos = photos_result
 
-            for dn, attrs in photos:
+            for photo in photos:
+                attrs = photo['attributes']
                 grade = attrs["cn"][0][:-len("Photo")]
                 try:
                     public = (attrs["perm-showpictures-self"][0] == "TRUE")
@@ -933,7 +936,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                                                   ])
             result = results.first_result()
             perms = {"parent": {}, "self": {}}
-            for perm, value in result.iteritems():
+            for perm, value in iteritems(result):
                 bool_value = True if (value[0] == 'TRUE') else False
                 if perm.endswith("-self"):
                     perm_name = perm[5:-5]
@@ -1384,11 +1387,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         if attr["is_list"] and not isinstance(value, (list, tuple)):
             raise Exception("Expected list for attribute '{}'".format(name))
 
-        # Possible issue with python ldap with unicode values
-        # FIXME: move to ldap3
-        if isinstance(value, text_type):
-            value = str(value)
-
         c = LDAPConnection()
         field_name = attr["ldap_name"]
         c.set_attribute(self.dn, field_name, value)
@@ -1403,11 +1401,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         """
         if self.dn is None:
             raise Exception("Could not determine DN of User")
-
-        # Possible issue with python-ldap with unicode values
-        # FIXME: move to ldap3
-        if isinstance(value, text_type):
-            value = str(value)
 
         c = LDAPConnection()
         c.set_attribute(self.dn, field_name, value)
@@ -1488,6 +1481,7 @@ class Class(object):
         """
         self.dn = dn or 'tjhsstSectionId={},ou=schedule,dc=tjhsst,dc=edu'.format(id)
 
+    # FIXME: find ldap3 equivalent
     section_id = property(lambda c: ldap.dn.str2dn(c.dn)[0][0][1])
     pk = section_id
 
