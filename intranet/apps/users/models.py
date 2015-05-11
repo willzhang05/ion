@@ -552,7 +552,6 @@ class User(AbstractBaseUser, PermissionsMixin):
                                                ["perm-showpictures-self",
                                                 "perm-showpictures"])
             default = default_result.first_result()
-            logger.debug(default)
             if "perm-showpictures" in default:
                 perms["parent"] = (default["perm-showpictures"][0] == "TRUE")
 
@@ -593,7 +592,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             Dictionary with keys "parent" and "self", each mapping to a
             list of permissions.
         """
-        key = ":".join([self.dn, 'user_info_permissions'])
+        key = ":".join([self.dn, "user_info_permissions"])
 
         cached = cache.get(key)
 
@@ -1194,7 +1193,6 @@ class Grade(object):
     def name(self):
         """Return the grade's name (e.g. senior)"""
         return self._number
-
 
     def __int__(self):
         """Return the grade as a number (9-12)."""
