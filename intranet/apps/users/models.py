@@ -1010,7 +1010,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_eighth_sponsor(self):
         """Return the :class:`EighthSponsor` that a given user is
         associated with.
-
         """
 
         from ..eighth.models import EighthSponsor
