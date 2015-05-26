@@ -116,16 +116,19 @@
                                 <td>{{ profile_user.display_name }}</td>
                             </tr>
                         {% endif %}
+
                         <tr>
                             <th>Username</th>
                             <td>{{ profile_user.ion_username }}</td>
                         </tr>
+
                         {% if request.user.is_teacher %}
                             <tr>
                                 <th>Student ID</th>
                                 <td>{{ profile_user.student_id }}</td>
                             </tr>
                         {% endif %}
+
                         {% if profile_user.birthday %}
                         <tr>
                             <th>Birthday</th>
