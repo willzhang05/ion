@@ -90,7 +90,6 @@
         <div class="user-info">
             <div class="user-container">
                 <div class="user-info-left">
-
                     <div class="user-title">
                         <h2 title="{{ profile_user.ion_username }} ({{ profile_user.ion_id }})">
                             {{ profile_user.full_name }}
@@ -116,19 +115,16 @@
                                 <td>{{ profile_user.display_name }}</td>
                             </tr>
                         {% endif %}
-
                         <tr>
                             <th>Username</th>
                             <td>{{ profile_user.ion_username }}</td>
                         </tr>
-
                         {% if request.user.is_teacher %}
                             <tr>
                                 <th>Student ID</th>
                                 <td>{{ profile_user.student_id }}</td>
                             </tr>
                         {% endif %}
-
                         {% if profile_user.birthday %}
                         <tr>
                             <th>Birthday</th>
