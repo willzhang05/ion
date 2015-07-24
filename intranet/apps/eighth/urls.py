@@ -37,6 +37,8 @@ urlpatterns = [
 ]
 
 eighth_admin_patterns = [
+    url(r"^history$", general.history_view, name="eighth_admin_history"),
+
     # Activities
     url(r"^activities/add$", activities.add_activity_view, name="eighth_admin_add_activity"),
     url(r"^activities/edit/(?P<activity_id>\d+)$", activities.edit_activity_view, name="eighth_admin_edit_activity"),

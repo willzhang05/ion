@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from datetime import datetime
+from datetime import datetime, timedelta
 from six.moves import cPickle as pickle
 from six.moves.urllib.parse import unquote
 from django.contrib import messages
@@ -10,7 +10,8 @@ from ....auth.decorators import eighth_admin_required
 from ...forms.admin import (
     activities as activity_forms, blocks as block_forms, groups as group_forms,
     rooms as room_forms, sponsors as sponsor_forms, general as general_forms)
-from ...models import EighthActivity, EighthBlock, EighthRoom, EighthSponsor
+from ...models import (EighthActivity, EighthBlock, EighthRoom, EighthSponsor,
+                       EighthSignup, EighthScheduledActivity)
 from ...utils import get_start_date, set_start_date
 
 
@@ -101,3 +102,19 @@ def edit_start_date_view(request):
 @eighth_admin_required
 def not_implemented_view(request, *args, **kwargs):
     raise NotImplementedError("This view has not been implemented yet.")
+
+
+@eighth_admin_required
+def history_view(request):
+    history_timeframe = datetime.now()-timedelta(minutes=15)
+    history = {
+        "EighthSignup": EighthSignup.history.filter(history_date__gt=history_timeframe),
+        "EighthScheduledActivity": EighthScheduledActivity.history.filter(history_date__gt=history_timeframe),
+        "EighthActivity": EighthActivity.history.filter(history_date__gt=history_timeframe),
+        "EighthBlock": EighthBlock.history.filter(history_date__gt=history_timeframe)
+    }
+    context = {
+        "history": history,
+        "admin_page_title": "Event History"
+    }
+    return render(request, "eighth/admin/history.html", context)

@@ -137,7 +137,8 @@ MIDDLEWARE_CLASSES = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "intranet.middleware.ajax.AjaxNotAuthenticatedMiddleWare",
     "intranet.middleware.templates.AdminSelectizeLoadingIndicatorMiddleware",
-    "intranet.middleware.access_log.AccessLogMiddleWare"
+    "intranet.middleware.access_log.AccessLogMiddleWare",
+    "simple_history.middleware.HistoryRequestMiddleware"
 ]
 
 ROOT_URLCONF = "intranet.urls"
@@ -253,6 +254,7 @@ INSTALLED_APPS = (
     "intranet.middleware.environment",
     "widget_tweaks",
     "django_extensions",
+    "simple_history"
 )
 
 EIGHTH_BLOCK_DATE_FORMAT = "D, N j, Y"
