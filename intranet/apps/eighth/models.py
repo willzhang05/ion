@@ -800,11 +800,13 @@ class EighthScheduledActivity(AbstractBaseEighthModel):
                                                 scheduled_activity=self,
                                                 after_deadline=after_deadline,
                                                 previous_activity_name=previous_activity_name,
-                                                previous_activity_sponsors=previous_activity_sponsors)
+                                                previous_activity_sponsors=previous_activity_sponsors,
+                                                own_signup=(user == request.user))
             except EighthSignup.DoesNotExist:
                 EighthSignup.objects.create(user=user,
                                             scheduled_activity=self,
-                                            after_deadline=after_deadline)
+                                            after_deadline=after_deadline,
+                                            own_signup=(user == request.user))
         else:
 
             all_sched_act = (EighthScheduledActivity.objects
@@ -838,7 +840,8 @@ class EighthScheduledActivity(AbstractBaseEighthModel):
                                             scheduled_activity=sched_act,
                                             after_deadline=after_deadline,
                                             previous_activity_name=previous_activity_name,
-                                            previous_activity_sponsors=previous_activity_sponsors)
+                                            previous_activity_sponsors=previous_activity_sponsors,
+                                            own_signup=(user == request.user))
 
                 # signup.previous_activity_name = signup.activity.name_with_flags
                 # signup.previous_activity_sponsors = ", ".join(map(str, signup.get_true_sponsors()))
@@ -956,6 +959,8 @@ class EighthSignup(AbstractBaseEighthModel):
     pass_accepted = models.BooleanField(default=False, blank=True)
     was_absent = models.BooleanField(default=False, blank=True)
     absence_acknowledged = models.BooleanField(default=False, blank=True)
+
+    own_signup = models.BooleanField(default=False)
 
     history = HistoricalRecords()
 
