@@ -14,6 +14,7 @@ urlpatterns = [
     url(r"^/signup(?:/(?P<block_id>\d+))?$", signup.eighth_signup_view, name="eighth_signup"),
     url(r"^/toggle_favorite$", signup.toggle_favorite_view, name="eighth_toggle_favorite"),
     url(r"^/absences$", attendance.eighth_absences_view, name="eighth_absences"),
+    url(r"^/absences/(?P<user_id>\d+)$", attendance.eighth_absences_view, name="eighth_absences"),
 
     # Teachers
     url(r"^/attendance$", attendance.teacher_choose_scheduled_activity_view, name="eighth_attendance_choose_scheduled_activity"),
@@ -24,6 +25,7 @@ urlpatterns = [
 
     # Profile
     url(r"^/profile(?:/(?P<user_id>\d+))?$", profile.profile_view, name="eighth_profile"),
+    url(r"^/profile(?:/(?P<user_id>\d+))/signup/(?P<block_id>\d+)?$", profile.profile_signup_view, name="eighth_profile_signup"),
     url(r"^/profile/edit(?:/(?P<user_id>\d+))?$", profile.edit_profile_view, name="eighth_edit_profile"),
 
     # Roster (for students)
@@ -51,6 +53,7 @@ eighth_admin_patterns = [
     url(r"^scheduling/schedule$", scheduling.schedule_activity_view, name="eighth_admin_schedule_activity"),
     url(r"^scheduling/activity_schedule$", scheduling.show_activity_schedule_view, name="eighth_admin_view_activity_schedule"),
     url(r"^scheduling/transfer_students$", scheduling.transfer_students_view, name="eighth_admin_transfer_students"),
+    url(r"^scheduling/transfer_students_action$", scheduling.transfer_students_action, name="eighth_admin_transfer_students_action"),
     url(r"^scheduling/distribute_students$", scheduling.distribute_students_view, name="eighth_admin_distribute_students"),
 
 
@@ -67,6 +70,8 @@ eighth_admin_patterns = [
     url(r"^attendance/export_out_of_building_schedules$", admin_attendance.out_of_building_schedules_view, name="eighth_admin_export_out_of_building_schedules"),
     url(r"^attendance/export_out_of_building_schedules/csv/(?P<block_id>\d+)$", admin_attendance.out_of_building_schedules_view, name="eighth_admin_export_out_of_building_schedules_csv"),
     url(r"^attendance/clear_absences/(?P<signup_id>\d+)$", admin_attendance.clear_absence_view, name="eighth_admin_clear_absence"),
+    url(r"^attendance/open_passes$", admin_attendance.open_passes_view, name="eighth_admin_view_open_passes"),
+    url(r"^attendance/open_passes/csv$", admin_attendance.open_passes_view, name="eighth_admin_view_open_passes_csv"),
 
     # Groups
     url(r"^groups/add$", groups.add_group_view, name="eighth_admin_add_group"),
@@ -88,7 +93,10 @@ eighth_admin_patterns = [
     url(r"^rooms/delete/(?P<room_id>\d+)$", rooms.delete_room_view, name="eighth_admin_delete_room"),
     url(r"^rooms/sanity_check$", rooms.room_sanity_check_view, name="eighth_admin_room_sanity_check"),
     url(r"^rooms/block_utilization$", rooms.room_utilization_for_block_view, name="eighth_admin_room_utilization_for_block"),
+    url(r"^rooms/block_utilization/csv$", rooms.room_utilization_for_block_view, name="eighth_admin_room_utilization_for_block_csv"),
     url(r"^rooms/utilization$", rooms.room_utilization_view, name="eighth_admin_room_utilization"),
+    url(r"^rooms/utilization/(?P<start_id>\d+)/(?P<end_id>\d+)$", rooms.room_utilization_action, name="eighth_admin_room_utilization"),
+    url(r"^rooms/utilization/(?P<start_id>\d+)/(?P<end_id>\d+)/csv$", rooms.room_utilization_action, name="eighth_admin_room_utilization_csv"),
 
 
     # Sponsors

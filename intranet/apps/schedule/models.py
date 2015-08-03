@@ -7,19 +7,34 @@ from django.db import models
 
 class Time(models.Model):
     hour = models.IntegerField()
-    min = models.IntegerField()
+    minute = models.IntegerField()
 
     def __unicode__(self):
-        return "{}:{}".format(self.hour, "0"+str(self.min) if self.min < 10 else self.min)
+        minute = "0"+str(self.minute) if self.minute < 10 else self.minute
+        return "{}:{}".format(self.hour, minute)
+
+    def str_12_hr(self):
+        hour = self.hour if self.hour <= 12 else (self.hour - 12)
+        minute = "0"+str(self.minute) if self.minute < 10 else self.minute
+        return "{}:{}".format(hour, minute)
+
+    class Meta:
+        unique_together = (("hour", "minute"))
+        ordering = ("hour", "minute")
 
 
 class Block(models.Model):
     name = models.CharField(max_length=100)
     start = models.ForeignKey('Time', related_name='blockstart')
     end = models.ForeignKey('Time', related_name='blockend')
+    order = models.IntegerField(default=0)
 
     def __unicode__(self):
         return "{}: {}-{}".format(self.name, self.start, self.end)
+
+    class Meta:
+        unique_together = (("name", "start", "end"))
+        ordering = ("order", "name", "start", "end")
 
 
 class CodeName(models.Model):
@@ -38,10 +53,16 @@ class DayType(models.Model):
     def __unicode__(self):
         return self.name
 
+    class Meta:
+        ordering = ("name",)
+
 
 class Day(models.Model):
-    date = models.DateField()
-    type = models.ForeignKey('DayType')
+    date = models.DateField(unique=True)
+    day_type = models.ForeignKey('DayType')
 
     def __unicode__(self):
-        return "{}: {}".format(text_type(self.date), self.type)
+        return "{}: {}".format(text_type(self.date), self.day_type)
+
+    class Meta:
+        ordering = ("date",)

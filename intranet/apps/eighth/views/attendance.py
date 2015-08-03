@@ -9,8 +9,9 @@ except ImportError:
     from cStringIO import StringIO as BytesIO
 import csv
 from django import http
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from formtools.wizard.views import SessionWizardView
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -25,7 +26,7 @@ from ...users.models import User
 from ..utils import get_start_date
 from ..forms.admin.activities import ActivitySelectionForm
 from ..forms.admin.blocks import BlockSelectionForm
-from ..models import EighthScheduledActivity, EighthSponsor, EighthSignup
+from ..models import EighthScheduledActivity, EighthSponsor, EighthSignup, EighthBlock
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +147,13 @@ def roster_view(request, scheduled_activity_id):
 
     signups = EighthSignup.objects.filter(scheduled_activity=scheduled_activity)
 
+    viewable_members = scheduled_activity.get_viewable_members(request.user)
+    num_hidden_members = len(scheduled_activity.get_hidden_members(request.user))
+    logger.debug(viewable_members)
     context = {
         "scheduled_activity": scheduled_activity,
+        "viewable_members": viewable_members,
+        "num_hidden_members": num_hidden_members,
         "signups": signups
     }
 
@@ -161,8 +167,13 @@ def raw_roster_view(request, scheduled_activity_id):
 
     signups = EighthSignup.objects.filter(scheduled_activity=scheduled_activity)
 
+    viewable_members = scheduled_activity.get_viewable_members(request.user)
+    num_hidden_members = len(scheduled_activity.get_hidden_members(request.user))
+
     context = {
         "scheduled_activity": scheduled_activity,
+        "viewable_members": viewable_members,
+        "num_hidden_members": num_hidden_members,
         "signups": signups
     }
 
@@ -189,6 +200,20 @@ def take_attendance_view(request, scheduled_activity_id):
         }, status=403)
 
     if request.method == "POST":
+
+        if "admin" in request.path:
+            url_name = "eighth_admin_take_attendance"
+        else:
+            url_name = "eighth_take_attendance"
+
+        if "clear_attendance_bit" in request.POST:
+            scheduled_activity.attendance_taken = False
+            scheduled_activity.save()
+
+            messages.success(request, "Attendance bit cleared for {}".format(scheduled_activity))
+
+            return redirect(url_name, scheduled_activity_id=scheduled_activity.id)
+
         if not scheduled_activity.block.locked:
             return render(request, "error/403.html", {
                 "reason": "You do not have permission to take attendance for this activity. The block has not been locked yet."
@@ -218,10 +243,7 @@ def take_attendance_view(request, scheduled_activity_id):
         scheduled_activity.attendance_taken = True
         scheduled_activity.save()
 
-        if "admin" in request.path:
-            url_name = "eighth_admin_take_attendance"
-        else:
-            url_name = "eighth_take_attendance"
+        messages.success(request, "Attendance updated.")
 
         return redirect(url_name, scheduled_activity_id=scheduled_activity.id)
     else:
@@ -254,7 +276,10 @@ def take_attendance_view(request, scheduled_activity_id):
                 "grade": user.grade.number,
                 "present": (scheduled_activity.attendance_taken and
                             (user.id not in absent_user_ids)),
-                "had_pass": user.id in pass_users
+                "had_pass": user.id in pass_users,
+                "pass_present": (not scheduled_activity.attendance_taken and
+                                 user.id in pass_users and
+                                 user.id not in absent_user_ids)
             })
 
         members.sort(key=lambda m: m["name"])
@@ -265,6 +290,15 @@ def take_attendance_view(request, scheduled_activity_id):
             "members": members,
             "p": pass_users
         }
+
+        if request.user.is_eighth_admin:
+            context["scheduled_activities"] = (EighthScheduledActivity.objects
+                                                                      .filter(block__id=scheduled_activity.block.id)
+                                                                      .exclude(cancelled=True))
+            logger.debug(context["scheduled_activities"])
+            context["blocks"] = (EighthBlock.objects
+                                            .filter(date__gte=get_start_date(request))
+                                            .order_by("date"))
 
         if request.resolver_match.url_name == "eighth_admin_export_attendance_csv":
             response = http.HttpResponse(content_type="text/csv")
@@ -330,12 +364,19 @@ def accept_pass_view(request, signup_id):
 
     status = request.POST.get("status")
 
+    logger.debug(status)
+
     if status == "accept":
-        signup.was_absent = False
-        signup.pass_accepted = True
+        logger.debug("ACCEPT")
+        """signup.was_absent = False
+        signup.present = True
+        signup.pass_accepted = True"""
+        signup.accept_pass()
     elif status == "reject":
-        signup.was_absent = True
-        signup.pass_accepted = True
+        logger.debug("REJECT")
+        """signup.was_absent = True
+        signup.pass_accepted = True"""
+        signup.reject_pass()
 
     signup.save()
 
@@ -416,6 +457,8 @@ def generate_roster_pdf(sched_act_ids, include_instructions):
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="Center", alignment=TA_CENTER))
     styles.add(ParagraphStyle(name="BlockLetter", fontSize=60, leading=72, alignment=TA_CENTER))
+    styles.add(ParagraphStyle(name="BlockLetterSmall", fontSize=30, leading=72, alignment=TA_CENTER))
+    styles.add(ParagraphStyle(name="BlockLetterSmallest", fontSize=20, leading=72, alignment=TA_CENTER))
     styles.add(ParagraphStyle(name="ActivityAttribute", fontSize=15, leading=18, alignment=TA_RIGHT))
 
     for i, said in enumerate(sched_act_ids):
@@ -426,15 +469,34 @@ def generate_roster_pdf(sched_act_ids, include_instructions):
         sponsors_str = "; ".join(l + ", " + f for f, l in sponsor_names)
 
         room_names = sact.get_true_rooms().values_list("name", flat=True)
-        rooms_str = ", ".join("Room " + r for r in room_names)
+        if len(room_names) == 1:
+            rooms_str = "Room " + room_names[0]
+        else:
+            rooms_str = ", ".join("Rooms: " + r for r in room_names)
+
+        block_letter = sact.block.block_letter
+
+        if len(block_letter) < 4:
+            block_letter_width = 1 * inch
+            block_letter_width += (0.5 * inch) * (len(block_letter) - 1)
+            block_letter_style = "BlockLetter"
+        elif len(block_letter) < 7:
+            block_letter_width = 0.4 * inch
+            block_letter_width += (0.3 * inch) * (len(block_letter) - 1)
+            block_letter_style = "BlockLetterSmall"
+        else:
+            block_letter_width = 0.3 * inch
+            block_letter_width += (0.2 * inch) * (len(block_letter) - 1)
+            block_letter_style = "BlockLetterSmallest"
+
 
         header_data = [[
-            Paragraph("<b>Activity ID {}</b>".format(sact.activity.id), styles["Normal"]),
+            Paragraph("<b>Activity ID: {}<br />Scheduled ID: {}</b>".format(sact.activity.id, sact.id), styles["Normal"]),
             Paragraph("{}<br/>{}<br/>{}".format(sponsors_str,
                                                 rooms_str,
-                                                sact.block.date.strftime("%A, %B %-d")),
+                                                sact.block.date.strftime("%A, %B %-d, %Y")),
                       styles["ActivityAttribute"]),
-            Paragraph("A", styles["BlockLetter"])
+            Paragraph(block_letter, styles[block_letter_style])
         ]]
         header_style = TableStyle([
             ("VALIGN", (0, 0), (0, 0), "TOP"),
@@ -443,7 +505,7 @@ def generate_roster_pdf(sched_act_ids, include_instructions):
             ("RIGHTPADDING", (1, 0), (1, 0), 0),
         ])
 
-        elements.append(Table(header_data, style=header_style, colWidths=[2 * inch, None, 1 * inch]))
+        elements.append(Table(header_data, style=header_style, colWidths=[2 * inch, None, block_letter_width]))
         elements.append(Spacer(0, 10))
         elements.append(Paragraph(sact.activity.name, styles["Title"]))
 
@@ -452,15 +514,23 @@ def generate_roster_pdf(sched_act_ids, include_instructions):
         elements.append(Paragraph(num_members_label, styles["Center"]))
         elements.append(Spacer(0, 5))
 
-        attendance_data = [[Paragraph("Present", styles["Heading5"]), Paragraph("Student Name (ID)", styles["Heading5"]), Paragraph("Grade", styles["Heading5"])]]
+        attendance_data = [[
+            Paragraph("Present", styles["Heading5"]),
+            Paragraph("Student Name (ID)", styles["Heading5"]),
+            Paragraph("Grade", styles["Heading5"])
+        ]]
 
         members = []
         for member in sact.members.all():
-            members.append((member.last_name + ", " + member.first_name, member.id))
+            members.append((
+                member.last_name + ", " + member.first_name,
+                (member.student_id if member.student_id else "User {}".format(member.id)),
+                int(member.grade) if member.grade else "?"
+            ))
         members = sorted(members)
 
-        for member_name, member_id in members:
-            row = ["", "{} ({})".format(member_name, member_id), "12"]
+        for member_name, member_id, member_grade in members:
+            row = ["", "{} ({})".format(member_name, member_id), member_grade]
             attendance_data.append(row)
 
         # Line commands are like this:
@@ -491,12 +561,11 @@ def generate_roster_pdf(sched_act_ids, include_instructions):
 
 
 @login_required
-def eighth_absences_view(request):
-    if "user" in request.GET and request.user.is_eighth_admin:
-        try:
-            user = User.get_user(id=request.GET["user"])
-        except (User.DoesNotExist, ValueError):
-            raise http.Http404
+def eighth_absences_view(request, user_id=None):
+    if user_id and request.user.is_eighth_admin:
+        user = get_object_or_404(User, id=user_id)
+    elif "user" in request.GET and request.user.is_eighth_admin:
+        user = get_object_or_404(User, id=request.GET["user"])
     else:
         if request.user.is_student:
             user = request.user
@@ -505,7 +574,8 @@ def eighth_absences_view(request):
 
     absences = (EighthSignup.objects
                             .filter(user=user,
-                                    was_absent=True)
+                                    was_absent=True,
+                                    scheduled_activity__attendance_taken=True)
                             .select_related("scheduled_activity__block", "scheduled_activity__activity")
                             .order_by("scheduled_activity__block"))
     context = {

@@ -26,13 +26,12 @@ $(function() {
 
         initialize: function(){
             _.bindAll(this, "render");
-
             this.template = _.template($("#activity-details-template").html());
         },
 
         events: {
             "click button#signup-button": "signupClickHandler",
-            "click button#roster-button": "rosterClickHandler"
+            "click a#roster-button": "rosterClickHandler"
         },
 
         render: function(){
@@ -57,11 +56,13 @@ $(function() {
         },
 
         rosterClickHandler: function(e) {
+            e.preventDefault();
+            console.log(e.target);
             var target = e.target;
             var schact_id = this.model.attributes.scheduled_activity;
             console.debug("Load roster for scheduled activity", schact_id)
-            var endpoint = $(target).parent().data("endpoint");
-            var container = $(target).parent();
+            var endpoint = $(target).data("endpoint");
+            var container = $("#roster-section");
             $.get(endpoint + "/" + schact_id, {}, function(resp) {
                 container.html(resp);
             });
@@ -98,7 +99,6 @@ $(function() {
         },
 
         showDetail: function(e) {
-            console.log("showing detail");
             $("#activity-list li[data-activity-id].selected").removeClass("selected");
             var $target = $(e.target);
             if (!$target.is("li")) {
@@ -111,17 +111,31 @@ $(function() {
 
             $target.addClass("selected");
 
-            activityDetailView = new eighth.ActivityDetailView({
-                model: this.model,
-                viewContainer: $("#activity-detail")
-            });
+            if (window.activityDetailView) {
+                window.activityDetailView.model = this.model;
+            } else {
+                window.activityDetailView = new eighth.ActivityDetailView({
+                    model: this.model,
+                    viewContainer: $("#activity-detail")
+                });
+            }
 
-            $("#activity-detail").data("aid", activityDetailView.model.id);
+
+            $("#activity-detail").data("aid", window.activityDetailView.model.id);
             $("#activity-detail").addClass("selected");
 
-            activityDetailView.render();
+            window.activityDetailView.render();
 
             initUIElementBehavior();
+
+            if(typeof badgeClickUpdate != "undefined") {
+                badgeClickUpdate();
+            }
+
+            /* remove ?activity= from URL if able */
+            if(location.search.substring(0, 10) == "?activity=" && history.pushState) {
+                history.pushState(null, null, location.href.split("?activity=")[0]);
+            }
         }
     });
 
@@ -192,6 +206,12 @@ $(function() {
                 activityDetailView.render();
                 activityListView.render();
 
+                var $container = $(".primary-content.eighth-signup");
+                var next_url = $container.attr("data-next-url");
+                if(next_url) {
+                    location.href = next_url;
+                }
+
 
             },
             error: function(xhr, status, error) {
@@ -225,24 +245,27 @@ $(function() {
         el: $("#activity-list"),
 
         initialize: function() {
+            this.rowViews = [];
             _.bindAll(this, "render");
-
             this.activities = activityModels.sort();
         },
 
         render: function() {
             var prevSelectedInFavorites = $("li[data-activity-id].selected").parent().hasClass("favorite-activities");
             var prevSelectedAid = $("li[data-activity-id].selected").data("activity-id");
-
+            var rowViews = this.rowViews;
+            while (rowViews.length > 0) {
+                rowViews.pop().remove();
+            }
             var renderActivitiesInContainer = function(models, $container) {
                 $container.html("");
                 _.each(models, function(model){
-                    var ActivityListRowView = new eighth.ActivityListRowView({
+                    var activityListRowView = new eighth.ActivityListRowView({
                         model: model
                     });
+                    rowViews.push(activityListRowView)
 
-                    $container.append(ActivityListRowView.render().el);
-                    // console.log(model.attributes.name);
+                    $container.append(activityListRowView.render().el);
                 }, this);
             }
 
@@ -301,4 +324,38 @@ $(function() {
 
     window.activityListView = new eighth.ActivityListView();
     activityListView.render()
+
+
+    $("button#unsignup-button").click(function() {
+        var uid = $(this).attr("data-uid");
+        var bid = $(this).attr("data-bid");
+        var force = $(this).attr("force");
+
+        var ths = $(this);
+        $.ajax({
+            url: $("#activity-detail").data("signup-endpoint"),
+            type: "POST",
+            data: {
+                "uid": uid,
+                "bid": bid,
+                "unsignup": true,
+                force: force
+            },
+            success: function(response) {
+                if(response.responseText) {
+                    alert($(response.responseText).text());
+                }
+                console.error(response);
+                location.reload();
+            },
+            error: function(response) {
+                if(response.responseText) {
+                    alert($(response.responseText).text());
+                }
+                console.error(response);
+                ths.attr("force", true);
+                ths.html(ths.html()+" (Force)");
+            }
+        });
+    });
 });

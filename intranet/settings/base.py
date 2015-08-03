@@ -5,6 +5,9 @@ import os
 import subprocess
 from .secret import *
 
+PRODUCTION = os.getenv("PRODUCTION", "") == "TRUE"
+TRAVIS = os.getenv("TRAVIS", "") == "true"
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 LOGIN_URL = "/login"
@@ -12,21 +15,28 @@ LOGIN_REDIRECT_URL = "/"
 
 APPEND_SLASH = False
 
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "mail.tjhsst.edu"
-EMAIL_PORT = 465
-EMAIL_USE_TLS = True
+EMAIL_PORT = 25
+EMAIL_USE_TLS = False
 EMAIL_SUBJECT_PREFIX = "[Ion] "
+
+EMAIL_FROM = "ion-noreply@tjhsst.edu"
 
 ADMINS = (
     ("Ethan Lowman", "2015elowman+ion@tjhsst.edu"),
-    ("James Woglom", "2016jwoglom+ion@tjhsst.edu")
+    ("James Woglom", "2016jwoglom+ion@tjhsst.edu"),
+    ("Samuel Damashek", "2017sdamashe+ion@tjhsst.edu"),
 )
+
+FEEDBACK_EMAIL = "intranet+feedback@tjhsst.edu"
+APPROVAL_EMAIL = "intranet+approval@tjhsst.edu"
 
 MANAGERS = ADMINS
 
 # Hosts/domain names that are valid for this site; required if DEBUG is False
 # See https://docs.djangoproject.com/en/1.4/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ["ion.tjhsst.edu", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["ion.tjhsst.edu", "localhost", "127.0.0.1", "198.38.18.250"]
 
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
@@ -115,7 +125,7 @@ TEMPLATES = [
     },
 ]
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE_CLASSES = [
     "intranet.middleware.ldap_db.CheckLDAPBindMiddleware",
     "intranet.middleware.url_slashes.FixSlashes",
     "django.middleware.common.CommonMiddleware",
@@ -127,7 +137,8 @@ MIDDLEWARE_CLASSES = (
     "django.contrib.messages.middleware.MessageMiddleware",
     "intranet.middleware.ajax.AjaxNotAuthenticatedMiddleWare",
     "intranet.middleware.templates.AdminSelectizeLoadingIndicatorMiddleware",
-)
+    "intranet.middleware.access_log.AccessLogMiddleWare"
+]
 
 ROOT_URLCONF = "intranet.urls"
 
@@ -209,6 +220,15 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": None,
     "DATE_FORMAT": None,
     "TIME_FORMAT": None,
+
+    "EXCEPTION_HANDLER": "intranet.apps.api.utils.custom_exception_handler",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
+
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "intranet.apps.api.authentication.KerberosBasicAuthentication",
+        "rest_framework.authentication.SessionAuthentication"
+    )
 }
 
 INSTALLED_APPS = (
@@ -221,14 +241,15 @@ INSTALLED_APPS = (
     "django.contrib.staticfiles",
     "rest_framework",
     "intranet.apps",
+    "intranet.apps.announcements",
     "intranet.apps.api",
-    "intranet.apps.users",
     "intranet.apps.auth",
     "intranet.apps.eighth",
-    "intranet.apps.announcements",
-    "intranet.apps.search",
+    "intranet.apps.events",
     "intranet.apps.groups",
+    "intranet.apps.search",
     "intranet.apps.schedule",
+    "intranet.apps.users",
     "intranet.middleware.environment",
     "widget_tweaks",
     "django_extensions",
@@ -241,7 +262,7 @@ EIGHTH_BLOCK_DATE_FORMAT = "D, N j, Y"
 # the site admins on every HTTP 500 error when DEBUG=False.
 # See http://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
-LOG_LEVEL = "DEBUG" if os.getenv("PRODUCTION", "FALSE") == "FALSE" else "INFO"
+LOG_LEVEL = "DEBUG" if not PRODUCTION else "INFO"
 _log_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 if os.getenv("LOG_LEVEL", None) in _log_levels:
     LOG_LEVEL = os.environ["LOG_LEVEL"]
@@ -257,6 +278,9 @@ LOGGING = {
         "simple": {
             "format": "%(levelname)s: %(message)s"
         },
+        "access": {
+            "format": "%(message)s"
+        }
     },
     "filters": {
         "require_debug_false": {
@@ -267,13 +291,35 @@ LOGGING = {
         "mail_admins": {
             "level": "ERROR",
             "filters": ["require_debug_false"],
-            "class": "django.utils.log.AdminEmailHandler"
+            "class": "django.utils.log.AdminEmailHandler",
+            "include_html": True
         },
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
             "formatter": "simple"
         },
+        "console_access": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "access"
+        },
+        "access_log": {
+            "level": "DEBUG",
+            "filters": ["require_debug_false"],
+            "class": "logging.FileHandler",
+            "formatter": "access",
+            "filename": "/var/log/ion/app_access.log",
+            "delay": True
+        },
+        "auth_log": {
+            "level": "DEBUG",
+            "filters": ["require_debug_false"],
+            "class": "logging.FileHandler",
+            "formatter": "access",
+            "filename": "/var/log/ion/app_auth.log",
+            "delay": True
+        }
     },
     "loggers": {
         "django.request": {
@@ -282,10 +328,20 @@ LOGGING = {
             "propagate": True,
         },
         "intranet": {
-            "handlers": ["console"],
+            "handlers": ["console", "mail_admins"],
             "level": LOG_LEVEL,
             "propagate": True,
         },
+        "intranet_access": {
+            "handlers": ["console_access"] + (["access_log"] if (PRODUCTION and not TRAVIS) else []),
+            "level": "DEBUG",
+            "propagate": False
+        },
+        "intranet_auth": {
+            "handlers": ["console_access"] + (["auth_log"] if (PRODUCTION and not TRAVIS) else []),
+            "level": "DEBUG",
+            "propagate": False
+        }
     }
 }
 

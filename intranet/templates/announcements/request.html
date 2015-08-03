@@ -9,24 +9,21 @@
 {% block js %}
     {{ block.super }}
     <script type="text/javascript" src="{% static 'vendor/ckeditor/ckeditor.js' %}"></script>
+    <script type="text/javascript" src="{% static 'vendor/datetimepicker-2.4.3/jquery.datetimepicker.js' %}"></script>
     <script type="text/javascript" src="{% static 'vendor/selectize.js-0.12.0/dist/js/standalone/selectize.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/announcement.form.js' %}"></script>
     <script type="text/javascript">
         $(function() {
-            $("select#id_groups").selectize({
-                plugins: ["remove_button"],
-                placeholder: "Everyone"
-            });
-
-            $("select#id_teachers_requested").selectize({
-                plugins: ["remove_button"]
-            });
+            var author = $("#id_author");
+            author.attr("placeholder", "{{ user.full_name|escape }}");
         });
     </script>
 {% endblock %}
 
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet" type="text/css" href="{% static 'vendor/selectize.js-0.12.0/dist/css/selectize.default.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'vendor/datetimepicker-2.4.3/jquery.datetimepicker.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'vendor/selectize.js-0.12.0/dist/css/selectize.default.css' %}" />
     <style type="text/css">
 
         div.cke_chrome {
@@ -37,7 +34,16 @@
             width: 600px;
         }
 
-        .announcements input {
+        .announcements table th {
+            min-width: 120px;
+        }
+
+        .announcements table td {
+            padding: 10px 0;
+        }
+
+        .announcements input,
+        .announcements textarea {
             width: 100%;
         }
 
@@ -63,10 +69,6 @@
             margin-bottom: -15px;
         }
 
-        .helptext {
-            display: block;
-            margin-bottom: 15px;
-        }
 
     </style>
 {% endblock %}
@@ -82,21 +84,30 @@
     <strong>Guidelines for News Posts:</strong><br />
     To increase the chances that your post comes up quickly, please mind the following:<br />
     <ol>
-    <li>Use correct English grammar, punctuation, and spelling; do not use all caps; keep posts concise when possible, and use active voice for better clarity.</li>
-    <li>Embedded images are not permitted directly in news posts except in special circumstances.</li>
-    <li>If you have a link to an external website in your post, make sure that it can be accessed without having to register for that site or provide any personal information. Facebook links that require you to sign in cannot be used for this reason, and may be omitted. This is to improve compliance with the FCPS Network User Guidelines.</li>
-    <li>If you are talking about a club, activity, or event in your post, please put the location and time in your post body. Otherwise people will have no idea where or when it is.  Please also try to make your post unique; we do not need twenty posts all titled "Free food!"</li>
-    <li>If there's a well-defined group, such as "The class of 2016" that you'd like to limit your post to, add that as a note in the notes field. If we have that group in the system, then we will post it to that group; otherwise, we will do the best that we can. If you do not specify a group, your news post will be visible to all students and faculty.</li>
-    <li>Please do not make requests for lost-and-found-type notices.</li>
+        <li>Use correct English grammar, punctuation, and spelling; do not use all caps; keep posts concise when possible, and use active voice for better clarity.</li>
+        <li>Embedded images are not permitted directly in news posts except in special circumstances.</li>
+        <li>If you have a link to an external website in your post, make sure that it can be accessed without having to register for that site or provide any personal information. Facebook links that require you to sign in cannot be used for this reason, and may be omitted. This is to improve compliance with the FCPS Network User Guidelines.</li>
+        <li>If you are talking about a club, activity, or event in your post, please put the location and time in your post body. Otherwise people will have no idea where or when it is.  Please also try to make your post unique; we do not need twenty posts all titled "Free food!"</li>
+        <li>If there's a well-defined group, such as "The Class of 2016" that you'd like to limit your post to, add that as a note in the notes field. If we have that group in the system, then we will post it to that group; otherwise, we will do the best that we can. If you do not specify a group, your news post will be visible to all students and faculty.</li>
+        <li>Please do not make requests for lost-and-found-type notices.</li>
     </ol>
-    We reserve the power to edit requests at our discretion. If your news post does not comply with our requirements, we may modify it, ask you to revise it, or in some cases reject it.
+    <br />
+    We reserve the right to edit requests at our discretion (e.g. to correct formatting or spelling errors). Please make sure your post complies with the guidelines.
     <br/><br/>
-    <form action="/announcements/{{ action }}{% if id %}/{{ id }}{% endif %}" method="post">
-    <table>
-    {% csrf_token %}
-    {{ form.as_table }}
-    <tr><td><input type="submit" /></td></tr>
-    </table>
+    <form action="" method="post">
+        <table>
+            {% csrf_token %}
+            {% for field in form %}
+                <tr>
+                    <th>{{ field.label_tag }}</th>
+                    <td>
+                        {{ field.help_text }}<br />
+                        {{ field }}
+                    </td>
+                </tr>
+            {% endfor %}
+            <tr><td><input type="submit" /></td></tr>
+        </table>
     </form>
 </div>
 <script type="text/javascript">

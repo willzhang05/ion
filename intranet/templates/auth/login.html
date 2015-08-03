@@ -8,10 +8,18 @@
 {% block css %}
     {{ block.super }}
     <link rel="stylesheet" type="text/css" href="{% static "css/login.css" %}" />
+    {% if bg_pattern %}
+        <style type="text/css">
+        body {
+            background-image: url('{{ bg_pattern }}');
+        }
+        </style>
+    {% endif %}
 {% endblock %}
 
 {% block js %}
     {{ block.super }}
+    <script type="text/javascript" src="{% static 'js/schedule.js' %}"></script>
     <script type="text/javascript">
         $(document).ready(function() {
             /* Input */
@@ -23,38 +31,16 @@
                 $username.focus();
             }
 
-            // /* Message */
-            // $msg = $(".message");
-            // $msg.click(function() {
-            //     $(this).slideUp();
-            // });
-            // setTimeout(function() {
-            //     $msg.slideUp();
-            // }, 2000);
-
-            /* Schedule */
-            $(".schedule-left").click(function() {
-                console.log("Last week");
+            $(".logo").click(function() {
+                location.href = (window.osearch ? "/?"+window.osearch.substring(0, window.osearch.length-1) : "/");
             });
-            $(".schedule-right").click(function() {
-                console.log("Next week");
-            })
 
-            if($("body").hasClass("touch")) {
-                $(".schedule-one, .schedule-two").fadeIn("slow");
-                $(".schedule-four, .schedule-five").fadeIn("slow");
-                $(".schedule-bottom").addClass("hovered");
-            } else {
-                $(".schedule-bottom").hover(function() {
-                    $(".schedule-one, .schedule-two").fadeIn();
-                    $(".schedule-four, .schedule-five").fadeIn();
-                    $(".schedule-bottom").addClass("hovered");
-                }, function() {
-                    $(".schedule-one, .schedule-two").fadeOut();
-                    $(".schedule-four, .schedule-five").fadeOut();
-                    $(".schedule-bottom").removeClass("hovered");
-                });
-            }
+            $("#revision").click(function(e) {
+                if (e.altKey) {
+                    location.href = "{{ git_info.commit_github_url }}";
+                }
+            });
+
         });
     </script>
 {% endblock %}
@@ -79,6 +65,11 @@
                         Log in to access this page.
                     </div>
                 {% endif %}
+                {% if auth_message %}
+                    <div class="message">
+                    {{ auth_message }}
+                    </div>
+                {% endif %}
                 <form {% if auth_form.errors %}autocomplete="off"{% endif %} action="/login{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" method="post">
                     {% csrf_token %}
                     {% for field in auth_form %}
@@ -87,16 +78,26 @@
                     <input type="submit" value="Login" />
                 </form>
             </div>
+            <div class="schedule-outer">
             {% include "schedule/view.html" %}
+            </div>
         </div>
     </div>
+
+    <div class="footer">
+    <a href="{% url 'about' %}">About/Credits</a> &nbsp; &mdash; &nbsp;
+    <a href="https://www.tjhsst.edu">TJHSST</a> &nbsp; &mdash; &nbsp;
+    <a href="https://webmail.tjhsst.edu">Webmail</a>
+    </div>
+    {% comment %}
     <div class="ssl-seal">
         <a href="https://seal.digicert.com/seals/popup/?tag=5VDyXkwz&amp;url=ion.tjhsst.edu&amp;lang=en_US" target="_blank">
             <img src="{% static 'img/digicert-seal.png' %}" />
         </a>
     </div>
+    {% endcomment %}
 
     <div class="git-version" title="{{ git_info.commit_info|escape }}">
-        <i class="fa fa-flask"></i><span onclick="location.href = '{{ git_info.commit_github_url }}'">Revision {{ git_info.commit_short_hash }}</span>
+        <i class="fa fa-flask"></i><span id="revision">Revision {{ git_info.commit_short_hash }}</span>
     </div>
 {% endblock %}

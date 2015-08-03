@@ -5,7 +5,7 @@ import logging
 from django import http
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
-from rest_framework.renderers import JSONRenderer
+from ....utils.serialization import safe_json
 from ...users.models import User
 from ..exceptions import SignupException
 from ..models import (
@@ -27,6 +27,34 @@ def eighth_signup_view(request, block_id=None):
         return redirect("/eighth/signup/{}?{}".format(block_id, args))
 
     if request.method == "POST":
+        if "unsignup" in request.POST and "aid" not in request.POST:
+            uid = request.POST.get("uid")
+            bid = request.POST.get("bid")
+            force = request.POST.get("force")
+            if force == "true":
+                force = True
+            else:
+                force = False
+
+            try:
+                user = User.get_user(id=uid)
+            except User.DoesNotExist:
+                return http.HttpResponseNotFound("Given user does not exist.")
+
+            try:
+                eighth_signup = (EighthSignup.objects
+                                             .get(scheduled_activity__block__id=bid,
+                                                  user__id=uid))
+                success_message = eighth_signup.remove_signup(request.user, force)
+            except EighthSignup.DoesNotExist:
+                return http.HttpResponse("The signup did not exist.")
+            except SignupException as e:
+                show_admin_messages = (request.user.is_eighth_admin and
+                                       not request.user.is_student)
+                return e.as_response(admin=show_admin_messages)
+
+            return http.HttpResponse(success_message)
+
         for field in ("uid", "bid", "aid"):
             if not (field in request.POST and request.POST[field].isdigit()):
                 return http.HttpResponseBadRequest(field + " must be an "
@@ -135,7 +163,7 @@ def eighth_signup_view(request, block_id=None):
             "user": user,
             "real_user": request.user,
             "block_info": block_info,
-            "activities_list": JSONRenderer().render(block_info["activities"]),
+            "activities_list": safe_json(block_info["activities"]),
             "active_block": block,
             "active_block_current_signup": active_block_current_signup
         }

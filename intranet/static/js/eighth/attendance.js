@@ -1,5 +1,5 @@
 $(function() {
-    $("select").selectize({});
+    //$("select").selectize({});
     $("input.datepicker, input[name=date]").datepicker();
 
     // Set up checkboxes on attendance pages
@@ -33,6 +33,6 @@ $(function() {
         var form = document.forms[$(this).data("form")];
         form.status.value = $(this).data("status");
 
-        if(confirm()) form.submit();
+        form.submit();
     })
 });

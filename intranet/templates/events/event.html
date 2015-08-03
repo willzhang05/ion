@@ -1,0 +1,87 @@
+{% load dates %}
+<div class="event" data-id="{{ event.id }}">
+    <h3>
+        {{ event.title }}
+        {% if is_events_admin or event.user == request.user %}
+            <div class="event-icon-wrapper">
+                <a href="{% url 'modify_event' event.id %}">
+                    <i class="event-icon fa fa-pencil"></i>
+                </a>
+                <a href="{% url 'delete_event' event.id %}" class="event-delete">
+                    <i class="event-icon fa fa-trash-o"></i>
+                </a>
+            </div>
+        {% endif %}
+    </h3>
+
+    <div class="event-metadata">
+        by {{ event.user.full_name|escape }} {% if event.show_fuzzy_date %}&bull; {{ event.time|fuzzy_date|capfirst }}{% endif %} &bull; {{ event.time|date:"l, F j, Y P"}} &bull; for
+        {% for group in event.groups.all %}
+            {{ group }}
+            {% if not forloop.last %},{% endif %}
+        {% empty %}
+            everyone
+        {% endfor %}
+    </div>
+
+    {% if event.announcement %}
+        <!--Announcement: <a href="">{{ event.announcement.title }}</a>-->
+        {% with announcement=event.announcement %}
+            {% include "announcements/announcement.html" %}
+        {% endwith %}
+    {% endif %}
+
+
+    {% if event.scheduled_activity %}
+        Activity: <a href="{% url 'eighth_signup' event.scheduled_activity.block.id %}?activity={{ event.scheduled_activity.activity.id }}">{{ event.scheduled_activity }}</a>
+    {% endif %}
+
+    <div class="event-content">
+        {{ event.description|safe }}
+    </div>
+    {% if show_attend %}
+        <form action="{% url 'join_event' event.id %}" method="post" name="no-attend-form-{{ event.id }}">
+            {% csrf_token %}
+            <input type="hidden" name="attending" value="false" />
+        </form>
+
+        <form action="{% url 'join_event' event.id %}" method="post" name="attend-form-{{ event.id }}">
+            {% csrf_token %}
+            <input type="hidden" name="attending" value="true" />
+        </form>
+    {% endif %}
+
+
+    <div class="bottom-row">
+        <span class="signup-status">
+            People attending: {{ event.attending.count }}
+            <a href="{% url 'event_roster' event.id %}" class="button small-button view-roster-button">
+                View Roster
+            </a>
+        </span>
+
+        {% if request.user in event.attending.all %}
+            <span class="attend-status">
+                You are <b style="color: green">attending</b> this event.
+                {% if show_attend %}
+                    <a href="#" data-form-submit="no-attend-form-{{ event.id }}" class="button small-button no-attend-button">
+                        <i class="fa fa-times"></i>
+                        Don't Attend
+                    </a>
+                {% endif %}
+            </span>
+        {% else %}
+            <span class="attend-status">
+                You are <b style="color: red">not attending</b> this event.
+                {% if show_attend %}
+                    <a href="#" data-form-submit="attend-form-{{ event.id }}" class="button small-button attend-button">
+                        <i class="fa fa-check"></i>
+                        Attend
+                    </a>
+                {% endif %}
+            </span>
+        {% endif %}
+    </div>
+
+
+</div>

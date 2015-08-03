@@ -151,7 +151,7 @@ def delinquent_students_view(request):
             counselor = delinquent["user"].counselor
             row.append(counselor.last_name if counselor else "")
             row.append("{}@tjhsst.edu".format(delinquent["user"].username))
-            row.append(delinquent["user"].emails[0] if len(delinquent["user"].emails) > 0 else "")
+            row.append(delinquent["user"].emails[0] if delinquent["user"].emails and len(delinquent["user"].emails) > 0 else "")
             writer.writerow(row)
 
         return response
@@ -377,3 +377,63 @@ def clear_absence_view(request, signup_id):
         return redirect("eighth_admin_dashboard")
     else:
         return http.HttpResponseNotAllowed(["POST"], "HTTP 405: METHOD NOT ALLOWED")
+
+
+@eighth_admin_required
+def open_passes_view(request):
+    passes = (EighthSignup.objects
+                          .filter(after_deadline=True,
+                                  pass_accepted=False))
+    if request.method == "POST":
+        pass_ids = list(request.POST.keys())
+
+        csrf = "csrfmiddlewaretoken"
+        if csrf in pass_ids:
+            pass_ids.remove(csrf)
+
+        accepted = 0
+        rejected = 0
+        for signup_id in pass_ids:
+            signup = EighthSignup.objects.get(id=signup_id)
+            status = request.POST.get(signup_id)
+            if status == "accept":
+                signup.accept_pass()
+                accepted += 1
+            elif status == "reject":
+                signup.reject_pass()
+                rejected += 1
+
+        messages.success(request, "Accepted {} and rejected {} passes.".format(accepted, rejected))
+
+    if request.resolver_match.url_name == "eighth_admin_view_open_passes_csv":
+        response = http.HttpResponse(content_type="text/csv")
+        filename = "\"open_passes.csv\""
+        response["Content-Disposition"] = "attachment; filename=" + filename
+
+        writer = csv.writer(response)
+        writer.writerow(["Block",
+                         "Activity",
+                         "Student",
+                         "Grade",
+                         "Absences",
+                         "Time (Last Modified)",
+                         "Time (Created)"])
+
+        for p in passes:
+            row = []
+            row.append(p.scheduled_activity.block)
+            row.append(p.scheduled_activity.activity)
+            row.append("{}, {} {}".format(p.user.last_name, p.user.first_name, p.user.nickname if p.user.nickname else ""))
+            row.append(int(p.user.grade))
+            row.append(p.user.absence_count())
+            row.append(p.last_modified_time)
+            row.append(p.created_time)
+            writer.writerow(row)
+
+        return response
+
+    context = {
+        "admin_page_title": "Open Passes",
+        "passes": passes
+    }
+    return render(request, "eighth/admin/open_passes.html", context)

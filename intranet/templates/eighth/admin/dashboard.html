@@ -1,4 +1,5 @@
 {% extends "eighth/admin/eighth_admin_page_base.html" %}
+{% load dates %}
 
 {% block js %}
     <script type="text/javascript">
@@ -35,7 +36,7 @@
             <select id="activity-select" placeholder="Select or search for an activity">
                 <option value="">Select or search for an activity</option>
                 {% for activity in all_activities %}
-                    <option value="{{ activity.id }}">{{ activity.id }}: {{ activity.name_with_flags }}</option>
+                    <option value="{{ activity.id }}" data-name="{{ activity.name_with_flags }}">{{ activity.aid }}: {{ activity.name_with_flags }}</option>
                 {% endfor %}
             </select>
             <div class="right-buttons">
@@ -48,6 +49,31 @@
         <td class="admin-section">
             <h3>Blocks</h3>
 
+            {% if blocks_today %}
+                <b>Today:</b>
+                <ul class="fa-ul blocks-today">
+                {% for blk in blocks_today %}
+                    <li>
+                        {% if blk.locked %}
+                            <a href="{% url 'eighth_admin_edit_block' blk.id %}">
+                                <i class="fa-li fa fa-lock"></i>
+                                <b>{{ blk.block_letter }} Block:</b></a> 
+                            Locked
+                        {% elif blk.signup_time_future %}
+                            <a href="{% url 'eighth_admin_edit_block' blk.id %}">
+                                <i class="fa-li fa fa-unlock"></i>
+                                <b>{{ blk.block_letter }} Block:</b></a> 
+                            Close time set to {{ blk.signup_time }}
+                        {% else %}
+                            <a href="{% url 'eighth_admin_edit_block' blk.id %}">
+                                <i class="fa-li fa fa-exclamation-triangle"></i>
+                                <b>{{ blk.block_letter }} Block:</b></a> 
+                            <b>Unlocked; close time set to {{ blk.signup_time }}</b>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
             <form id="add-block-form" action="{% url 'eighth_admin_add_block' %}" method="post" autocomplete="off">
                 <h4>Add Block</h4>
                 {% csrf_token %}
@@ -62,7 +88,7 @@
             </form>
 
             <ul class="fa-ul">
-                <li><a href="{% url 'eighth_admin_add_multiple_blocks' %}"><i class="fa-li fa fa-list-alt"></i>Add/remove multiple blocks</a></li>
+                <li><a href="{% url 'eighth_admin_add_multiple_blocks' %}"><i class="fa-li fa fa-list-alt"></i>Modify blocks by day</a></li>
             </ul>
 
             <h4>Block Actions</h4>
@@ -89,12 +115,13 @@
                 <li><a href="{% url 'eighth_admin_distribute_unsigned' %}"><i class="fa-li fa fa-book"></i>Distribute students who have not signed up among activities</a></li>
             </ul>
         </td>
-        <td class="admin-section">
+        <td class="admin-section attendance">
             <h3>Attendance</h3>
             <ul class="fa-ul">
                 <li><a href="{% url 'eighth_admin_attendance_choose_scheduled_activity' %}"><i class="fa-li fa fa-check-square"></i>View/take attendance</a></li>
                 <li><a href="{% url 'eighth_admin_view_delinquent_students' %}"><i class="fa-li fa fa-gavel"></i>View absence information (delinquent students)</a></li>
                 <li><a href="{% url 'eighth_admin_view_after_deadline_signups' %}"><i class="fa-li fa fa-clock-o"></i>View list of after-deadline signups</a></li>
+                <li><a href="{% url 'eighth_admin_view_open_passes' %}"><i class="fa-li fa fa-moon-o"></i>View list of open passes</a></li>
                 <li><a href="{% url 'eighth_admin_view_activities_without_attendance' %}"><i class="fa-li fa fa-frown-o"></i>View activities that haven't taken attendance</a></li>
                 <li><a href="{% url 'eighth_admin_migrate_outstanding_passes' %}"><i class="fa-li fa fa-ban"></i>Migrate all outstanding passes</a></li>
                 <li><a href="{% url 'eighth_admin_export_out_of_building_schedules' %}"><i class="fa-li fa fa-building-o"></i>Export out-of-building schedules</a></li>
@@ -177,8 +204,8 @@
 
             <ul class="fa-ul">
                 <li><a href="{% url 'eighth_admin_room_sanity_check' %}"><i class="fa-li fa fa-check-square-o"></i>Room assignment sanity check</a></li>
-                <li><a href="{% url 'eighth_admin_room_utilization_for_block' %}"><i class="fa-li fa fa-map-marker"></i>View utilization of all rooms for a given block</a></li>
-                <li><a href="{% url 'eighth_admin_room_utilization' %}"><i class="fa-li fa fa-arrows-h"></i>View utilization of a room over a range of blocks</a></li>
+                <li><a href="{% url 'eighth_admin_room_utilization_for_block' %}"><i class="fa-li fa fa-map-marker"></i>View room utilization for a specific block</a></li>
+                <li><a href="{% url 'eighth_admin_room_utilization' %}"><i class="fa-li fa fa-arrows-h"></i>View room utilization across blocks</a></li>
             </ul>
         </td>
     </tr>
@@ -203,7 +230,7 @@
             <select id="sponsor-select" placeholder="Select or search for a sponsor">
                 <option value="">Select or search for a sponsor</option>
                 {% for sponsor in sponsors %}
-                    <option value="{{ sponsor.id }}">{{ sponsor.first_name }} {{ sponsor.last_name }}{% if sponsor.user %} (User {{ sponsor.user.id }}){% endif %}</option>
+                    <option value="{{ sponsor.id }}">{{ sponsor.name }}{% if sponsor.user.id %} (User {{ sponsor.user.id }}){% else %} (No user){% endif %}</option>
                 {% endfor %}
             </select>
             <div class="right-buttons">

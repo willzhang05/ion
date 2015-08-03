@@ -78,8 +78,8 @@ class LDAPConnection(object):
                 _thread_locals.simple_bind = False
             except (ldap.LOCAL_ERROR, ldap.INVALID_CREDENTIALS) as e:
                 _thread_locals.ldap_conn.simple_bind_s(settings.AUTHUSER_DN, settings.AUTHUSER_PASSWORD)
-                logger.error("SASL bind failed - using simple bind")
-                logger.error(e)
+                logger.warning("SASL bind failed - using simple bind")
+                logger.warning(e)
                 _thread_locals.simple_bind = True
 
             # logger.debug(_thread_locals.ldap_conn.whoami_s())
@@ -151,7 +151,7 @@ class LDAPConnection(object):
         try:
             r = self.search(dn, filter, attributes)
         except ldap.NO_SUCH_OBJECT:
-            logger.error("No such user " + dn)
+            logger.warning("No such user " + dn)
             raise
         return LDAPResult(r)
 
@@ -179,7 +179,7 @@ class LDAPConnection(object):
         try:
             r = self.search(dn, filter, attributes)
         except ldap.NO_SUCH_OBJECT:
-            logger.error("No such class " + dn)
+            logger.warning("No such class " + dn)
             raise
         return LDAPResult(r)
 
@@ -198,7 +198,20 @@ class LDAPResult(object):
     """
 
     def __init__(self, result):
-        self.result = result
+        self.result = self.decode_obj(result)  # Encode results as unicode
+
+    def decode_obj(self, obj):  # FIXME: Currently, python-ldap is not unicode safe, so this is the best we can do.
+        if isinstance(obj, list):
+            return list([self.decode_obj(element) for element in obj])
+        elif isinstance(obj, tuple):
+            return tuple(self.decode_obj(element) for element in obj)
+        elif isinstance(obj, dict):
+            return dict({self.decode_obj(key): self.decode_obj(value) for key,value in obj.items()})
+        else:
+            try:
+                return obj.decode("utf-8")
+            except:
+                return obj
 
     def first_result(self):
         """Fetch the first LDAP object in the response."""

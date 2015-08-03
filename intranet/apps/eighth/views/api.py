@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import logging
+import json
 
 from django.http import Http404
-from rest_framework import generics, views
+from django.shortcuts import get_object_or_404
+from rest_framework import generics, views, status
 from rest_framework.response import Response
-from ..models import EighthActivity, EighthBlock, EighthSignup
-from ..serializers import EighthBlockListSerializer, EighthBlockDetailSerializer, EighthActivityDetailSerializer, EighthSignupSerializer
+from intranet.apps.users.models import User
+from ..models import EighthActivity, EighthBlock, EighthSignup, EighthScheduledActivity
+from ..serializers import EighthBlockListSerializer, EighthBlockDetailSerializer, EighthActivityListSerializer, EighthActivityDetailSerializer, EighthSignupSerializer, EighthAddSignupSerializer, EighthScheduledActivitySerializer
+
+logger = logging.getLogger(__name__)
 
 
 # class EighthActivityList(generics.ListAPIView):
@@ -13,6 +19,11 @@ from ..serializers import EighthBlockListSerializer, EighthBlockDetailSerializer
 #     """
 #     queryset = EighthActivity.undeleted_objects.all()
 #     serializer_class = EighthActivityDetailSerializer
+
+
+class EighthActivityList(generics.ListAPIView):
+    queryset = EighthActivity.undeleted_objects.all()
+    serializer_class = EighthActivityListSerializer
 
 
 class EighthActivityDetail(generics.RetrieveAPIView):
@@ -47,21 +58,41 @@ class EighthBlockDetail(views.APIView):
         return Response(serializer.data)
 
 
-class EighthUserSignupList(views.APIView):
+class EighthUserSignupListAdd(generics.ListCreateAPIView):
+    serializer_class = EighthAddSignupSerializer
 
-    """API endpoint that lists all signups for a certain user
-    """
+    def list(self, request, user_id=None):
+        if not user_id:
+            user_id = request.user.id
 
-    def get(self, request, user_id):
         signups = EighthSignup.objects.filter(user_id=user_id).prefetch_related("scheduled_activity__block").select_related("scheduled_activity__activity")
 
-        # if block_id is not None:
-        # signups = signups.filter(activity__block_id=block_id)
+        serialized = EighthSignupSerializer(signups, context={"request": request}, many=True)
 
-        serializer = EighthSignupSerializer(signups, context={"request": request})
-        data = serializer.data
+        return Response(serialized.data)
 
-        return Response(data)
+    def create(self, request, user_id=None):
+        if user_id:
+            user = User.objects.get(id=user_id)
+        else:
+            user = request.user
+
+        serializer = EighthAddSignupSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if "activity" not in serializer.validated_data or "block" not in serializer.validated_data or serializer.validated_data.get("use_scheduled_activity", False):
+            schactivity = serializer.validated_data["scheduled_activity"]
+        else:
+            schactivity = EighthScheduledActivity.objects.filter(activity=serializer.validated_data["activity"]).filter(block=serializer.validated_data["block"]).get()
+        if 'force' in serializer.validated_data:
+            force = serializer.validated_data['force']
+        else:
+            force = False
+
+        schactivity.add_user(user, request, force=force)
+
+        return Response(EighthActivityDetailSerializer(schactivity.activity, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class EighthScheduledActivitySignupList(views.APIView):
@@ -70,9 +101,8 @@ class EighthScheduledActivitySignupList(views.APIView):
     """
 
     def get(self, request, scheduled_activity_id):
-        signups = EighthSignup.objects.filter(scheduled_activity__id=scheduled_activity_id)
-
-        serializer = EighthSignupSerializer(signups, context={"request": request})
+        scheduled_activity = EighthScheduledActivity.objects.get(id=scheduled_activity_id)
+        serializer = EighthScheduledActivitySerializer(scheduled_activity, context={"request": request})
 
         return Response(serializer.data)
 
