@@ -20,29 +20,8 @@
 {% block js %}
     {{ block.super }}
     <script type="text/javascript" src="{% static 'js/schedule.js' %}"></script>
-    <script type="text/javascript">
-        $(document).ready(function() {
-            /* Input */
-            var $username = $("input[name=username]");
-            var $password = $("input[name=password]");
-            if(!$username.hasClass("error") && $password.hasClass("error")) {
-                $password.focus();
-            } else {
-                $username.focus();
-            }
-
-            $(".logo").click(function() {
-                location.href = (window.osearch ? "/?"+window.osearch.substring(0, window.osearch.length-1) : "/");
-            });
-
-            $("#revision").click(function(e) {
-                if (e.altKey) {
-                    location.href = "{{ git_info.commit_github_url }}";
-                }
-            });
-
-        });
-    </script>
+    <script type="text/javascript" src="{% static 'js/login.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/vendor/spin.min.js' %}"></script>
 {% endblock %}
 
 {% block body %}
@@ -70,12 +49,13 @@
                     {{ auth_message }}
                     </div>
                 {% endif %}
-                <form {% if auth_form.errors %}autocomplete="off"{% endif %} action="/login{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" method="post">
+                <form {% if auth_form.errors %}autocomplete="off"{% endif %} action="/login{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" method="post" name="auth_form">
                     {% csrf_token %}
                     {% for field in auth_form %}
                         {{ field }}<br />
                     {% endfor %}
                     <input type="submit" value="Login" />
+                    <div class='spinner-container'></div>
                 </form>
             </div>
             <div class="schedule-outer">
@@ -98,6 +78,6 @@
     {% endcomment %}
 
     <div class="git-version" title="{{ git_info.commit_info|escape }}">
-        <i class="fa fa-flask"></i><span id="revision">Revision {{ git_info.commit_short_hash }}</span>
+        <i class="fa fa-flask"></i><span id="revision" data-github-url="{{ git_info.commit_github_url }}">Revision {{ git_info.commit_short_hash }}</span>
     </div>
 {% endblock %}

@@ -56,9 +56,12 @@
 
     {% block head %}
     {% endblock %}
+
+    {% include "android_client_check.html" %}
 </head>
 <body class="notransition{% block bodyclass %}{% endblock %}"{% block bodytag %}{% endblock %}>
     {% block body %}
     {% endblock %}
+
 </body>
 </html>
