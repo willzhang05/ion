@@ -1,5 +1,6 @@
 {% extends "page_with_nav.html" %}
 {% load staticfiles %}
+{% load dates %}
 
 {% block title %}
     {{ block.super }}{% if request.user.is_eighth_admin %} - Eighth Admin{% endif %} - {% if scheduled_activity.block.locked %}Take Attendance{% else %}View Roster{% endif %}
@@ -18,24 +19,78 @@
     <!--[if lt IE 9]><script src="http://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.0.8/es5-shim.min.js"></script><![endif]-->
     <script type="text/javascript" src="{% static 'js/eighth/attendance.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/eighth/ui_init.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/eighth/user_link.js' %}"></script>
+    {% if wizard %}
+    <script type="text/javascript">
+$(function() {
+    $("form > select").on("change", function() {
+        this.form.submit();
+    })
+});
+    </script>
+    {% else %}
+    <script type="text/javascript">
+$(function() {
+    $("form[name='choose-activity'] > select").on("change", function() {
+        var val = $(this).val();
+        if(val.length > 0) {
+            location.href = $(".choose-activity").attr("data-endpoint") + "/" + val;
+        }
+    });
+})
+    </script>
+    {% endif %}
 {% endblock %}
 
 
 {% block main %}
     <div class="primary-content">
         <div class="eighth-header">
-                <h2>
+            <h2>
+                {% if scheduled_activity %}
                     {% if scheduled_activity.block.locked %}
-                        Take Attendance
+                        Take Attendance: {{ scheduled_activity }}
                     {% else %}
-                        View Roster
+                        View Roster: {{ scheduled_activity }}
                     {% endif %}
-                </h2>
-
-                {% if request.user.is_eighth_admin %}
-                    {% include "eighth/admin/start_date.html" %}
+                {% else %}
+                    Attendance/Roster
                 {% endif %}
+            </h2>
+
+            {% if request.user.is_eighth_admin %}
+                {% include "eighth/admin/start_date.html" %}
+            {% endif %}
         </div>
+    {% if request.user.is_eighth_admin and not wizard %}
+        <div class="choose-block">
+            <form action="{% url 'eighth_admin_attendance_choose_scheduled_activity' %}" method="post" name="choose-block">
+                {% csrf_token %}
+                <input type="hidden" name="eighth_attendance_select_scheduled_activity_wizard-current_step" value="block" />
+                <b>Block:</b>
+                <select name="block-block" onchange="if(this.value.length > 0) this.form.submit()" id="block-select">
+                    {% for blk in blocks %}
+                        <option value="{{ blk.id }}" {% if blk.id == scheduled_activity.block.id %} selected{% endif %}>
+                            {{ blk.id }}: {{ blk }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="choose-activity" data-endpoint="/eighth{% if request.user.is_eighth_admin %}/admin{% endif %}/attendance">
+            <form name="choose-activity">
+                <b>Activity:</b>
+                <select name="scheduled-activities" id="activity-select">
+                {% for schact in scheduled_activities %}
+                    <option value="{{ schact.id }}" {% if schact.id == scheduled_activity.id %} selected="selected"{% endif %}>
+                        {{ schact.activity.id }}: {{ schact.title_with_flags }}
+                    </option>
+                {% endfor %}
+                </select>
+            </form>
+        </div>
+    {% endif %}
+
 
         {% if request.GET.ns %}
             <strong>You are not sponsoring any activities. You are not an eighth period sponsor.</strong>
@@ -44,6 +99,14 @@
 
         {% if request.GET.na %}
             <strong>You are not sponsoring any activities for the block you selected.</strong>
+            <br />
+        {% endif %}
+
+        {% if request.GET.no_attendance %}
+            <a href="{% url 'eighth_admin_view_activities_without_attendance' %}?block={{ request.GET.no_attendance|escape }}" class="button">
+                <i class="fa fa-arrow-left"></i>
+                Activities w/o Attendance
+            </a>
             <br />
         {% endif %}
 
@@ -58,12 +121,13 @@
                 {% if wizard.steps.next %}
                     <input type="submit" value="Next"/>
                 {% else %}
-                    <input type="submit" value="Take Attendance"/>
+                    <input type="submit" value="{% if scheduled_activity.block.locked %}Take Attendance{% else %}View Roster{% endif %}"/>
                 {% endif %}
             </form>
         {% else %}
             <div class="attendance-container">
                 <table class="key-value-table activity-attributes">
+                {% if not request.user.is_eighth_admin %}
                     <tr>
                         <th>Activity:</th>
                         <td>{{ scheduled_activity.activity.name_with_flags }} ({{ scheduled_activity.activity.id }})</td>
@@ -72,6 +136,7 @@
                         <th>Date:</th>
                         <td>{{ scheduled_activity.block.date|date:"EIGHTH_BLOCK_DATE_FORMAT" }}, {{ scheduled_activity.block.block_letter }} Block</td>
                     </tr>
+                {% endif %}
                     <tr>
                         <th>Rooms:</th>
                         <td>{{ scheduled_activity.get_true_rooms|join:", " }}</td>
@@ -88,7 +153,6 @@
                     </tr>
                 </table>
 
-
                 {% if scheduled_activity.attendance_taken %}
                     <div class="attendance-taken">
                         <i class="fa fa-check"></i> Attendance Taken
@@ -99,35 +163,45 @@
                     </div>
                 {% endif %}
 
-                <a class="button" href="{% url 'eighth_admin_export_attendance_csv' scheduled_activity.id %}">Export CSV</a>
-
-                <div class="pass-container">
                 {% if passes and scheduled_activity.block.locked %}
-                    <h3>Passes</h3>
+                    <div class="passes-notice">
+                        <i class="fa fa-exclamation-triangle"></i> Accept/Reject Student Passes
+                    </div>
+                {% endif %}
+
+                <div class="pass-container{% if request.user.is_eighth_admin %} eighth-admin{% endif %}{% if passes and scheduled_activity.block.locked %} has-passes{% endif %}">
+                {% if passes and scheduled_activity.block.locked %}
+                    <h3 class="passes-notice"><i class="fa fa-exclamation-triangle"></i> Student Passes</h3>
                     <table class="take-passes">
                         <thead>
                             <tr>
                                 <th>Student</th>
                                 <th>Student ID</th>
                                 <th>Grade</th>
+                                <th>Time</th>
                                 <th>Accept/Reject</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for pass in passes %}
                             <tr class="pass-student">
-                                <td>
-                                    {{ pass.user.last_name }}, {{ pass.user.first_name }}
+                                <td class="user-link" data-user-id="{{ pass.user.id }}">
+                                    <a href="{% url 'user_profile' pass.user.id %}">
+                                        {{ pass.user.last_name }}, {{ pass.user.first_name }}
+                                    </a>
                                 </td>
-                                <td>
+                                <td class="user-link">
                                     {% if pass.user.student_id %}
                                         {{ pass.user.student_id }}
                                     {% else %}
                                         (Ion {{ pass.user.id }})
                                     {% endif %}
                                 </td>
-                                <td style="text-align: center">
+                                <td style="text-align: center" class="user-link">
                                     {{ pass.user.grade.number }}
+                                </td>
+                                <td>
+                                    {{ pass.last_modified_time|fuzzy_date }}
                                 </td>
                                 <td class="form">
                                     <form name="pass-form-{{ pass.id }}" action="{% url 'eighth_accept_pass' pass.id %}" method="post">
@@ -141,12 +215,13 @@
                                 </td>
                             </tr>
                             {% endfor %}
-                            <tr>
+                            <tr class="pass-button-row">
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>
-                                    <form action="{% url 'eighth_accept_all_passes' scheduled_activity.id %}" method="post">
+                                    <form action="{% url 'eighth_accept_all_passes' scheduled_activity.id %}" method="post" onsubmit="return confirm('Accept passes for and mark {{ passes|length }} student{{ passes|pluralize }} present?')">
                                         {% csrf_token %}
                                         <input type="submit" class="button accept-all-passes" value="Accept All">
                                     </form>
@@ -154,22 +229,20 @@
                             </tr>
                         </tbody>
                     </table>
-                    
-                    <br />
-                    <br />
-                    <br />
                 {% else %}
-                    There are no passes to accept.
+                    <h3>Passes</h3>
+                    <i class="fa fa-check" style="color:green"></i> There are no passes to accept.
                 {% endif %}
                 </div>
 
                 <form class="attendance-form" action="" method="post">
                     {% csrf_token %}
                     <table class="take-attendance-roster">
+                        {% if members %}
                         <thead>
                             <tr>
                                 {% if scheduled_activity.block.locked %}
-                                    <th><input type="checkbox" class="">Present</th>
+                                    <th><input type="checkbox" />Present</th>
                                 {% endif %}
                                 <th>Student</th>
                                 <th>Student ID</th>
@@ -177,25 +250,30 @@
                                 <th></th>
                             </tr>
                         </thead>
+                        {% endif %}
                         <tbody>
                             {% for member in members %}
                                 <tr>
                                     {% if scheduled_activity.block.locked %}
-                                        <td class="present-checkbox"><input type="checkbox" name="{{ member.id }}"{% if member.present %} checked{% endif %}></td>
+                                        <td class="present-checkbox"><input type="checkbox" name="{{ member.id }}"{% if member.present or member.pass_present %} checked{% endif %}></td>
                                     {% endif %}
-                                    <td>{{ member.name }}</td>
+                                    <td class="user-link" data-user-id="{{ member.id }}">
+                                        <a href="{% url 'user_profile' member.id %}">
+                                            {{ member.name }}
+                                        </a>
+                                    </td>
                                     <td>{% if member.student_id %}
                                         {{ member.student_id }}
                                     {% else %}
                                         (Ion {{ member.id }})
                                     {% endif %}</td>
                                     <td style="text-align: center">{{ member.grade }}</td>
-                                    <td>{% if member.had_pass %}(Had Pass){% endif %}</td>
+                                    <td>{% if member.had_pass %}(Had Pass{% if member.pass_present %}; Accepted{% endif %}){% endif %}</td>
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="4">
-                                        There are no students signed up.
+                                    <td colspan="5">
+                                        <i class="fa fa-info-circle"></i> There are no signups.
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -216,6 +294,18 @@
                         </tfoot>
                     </table>
                 </form>
+
+                <br />
+                <a class="button" href="{% url 'eighth_admin_export_attendance_csv' scheduled_activity.id %}">Export CSV</a>
+                {% if user.is_eighth_admin %}
+                    <br />
+                    <br />
+                    <form action="" method="post" onsubmit="return confirm('Are you sure you want to reset attendance on this activity?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="clear_attendance_bit" value="true" />
+                        <input type="submit" value="Clear Attendance Bit" style="font-size: 10px; padding: 3px 5px" />
+                    </form>
+                {% endif %}
             </div>
         {% endif %}
     </div>

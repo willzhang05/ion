@@ -46,6 +46,10 @@ fi
 cp intranet/config/ion_env_setup.sh /etc/ion_env_setup.sh
 touch .bash_history
 
+# Utils
+apt-get -y install htop
+apt-get -y install glances
+
 # PostsgreSQL
 apt-get -y install postgresql
 apt-get -y install postgresql-contrib
@@ -55,7 +59,7 @@ sqlcmd(){
 }
 sqlcmd "CREATE DATABASE ion;"
 sqlcmd "CREATE USER ion;"
-sqlcmd "ALTER USER ion WITH PASSWORD 'pwd';"
+sqlcmd "ALTER USER ion WITH PASSWORD '$(devconfig sql_password)';"
 sed -Ei "s/(^local +all +all +)peer$/\1md5/g" /etc/postgresql/9.3/main/pg_hba.conf
 service postgresql restart
 
@@ -70,11 +74,17 @@ cd ../..
 rm -rf redis-stable redis-stable.tar.gz
 
 # Elasticsearch
+add-apt-repository -y ppa:webupd8team/java
+apt-get update
+echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections
+echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections
+apt-get -y install oracle-java7-installer
 wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | apt-key add -
 echo "deb http://packages.elastic.co/elasticsearch/1.4/debian stable main" | sudo tee -a /etc/apt/sources.list
 apt-get update && apt-get install elasticsearch
 echo "network.bind_host: localhost" >> /etc/elasticsearch/elasticsearch.yml
 echo "script.disable_dynamic: true" >> /etc/elasticsearch/elasticsearch.yml
+update-rc.d elasticsearch defaults 95 10
 service elasticsearch restart
 
 # Ion
@@ -93,3 +103,6 @@ cd intranet
 ./manage.py migrate --noinput
 cd ..
 chown -R vagrant: /home/vagrant
+
+mkdir /var/log/ion
+chown -R vagrant: /var/log/ion

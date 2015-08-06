@@ -1,10 +1,27 @@
 {% extends "eighth/admin/eighth_admin_page_base.html" %}
+{% load staticfiles %}
+
+{% block js %}
+    <script type="text/javascript" src="{% static 'vendor/sortable-0.6.0/js/sortable.min.js' %}"></script>
+    {{ block.super }}
+    <script type="text/javascript">
+        $(function() {
+            Sortable.init();
+        });
+    </script>
+{% endblock %}
+
+{% block css %}
+    <link rel="stylesheet" type="text/css" href="{% static 'vendor/sortable-0.6.0/css/sortable-theme-minimal.css' %}">
+    {{ block.super }}
+{% endblock %}
 
 {% block admin_main %}
 
 <h4>Select a Block:</h4>
 
 <select class="url-param-selector" data-param="block" placeholder="Select or search for a block">
+    <option value="">Select or search for a block</option>
     {% for block in blocks %}
         <option value="{{ block.id }}"{% if block == chosen_block %} selected{% endif %}>{{ block.id }}: {{ block.date|date:"EIGHTH_BLOCK_DATE_FORMAT" }} ({{ block.block_letter }})</option>
     {% endfor %}
@@ -15,7 +32,8 @@
     <br>
     <a class="button" href="{% url 'eighth_admin_export_out_of_building_schedules_csv' chosen_block.id %}">Export CSV</a>
     <br>
-    <table class="fancy-table">
+    Click on column titles to sort.
+    <table data-sortable class="fancy-table">
         <thead>
             <tr>
                 <th>Name</th>

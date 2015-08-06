@@ -9,7 +9,7 @@ devconfig = JSON.parse(File.read("config/devconfig.json"))
 def setup_host
   return unless ["up", "resume", "ssh", "reload"].include? ARGV[0]
 
-  if !(`netstat -nr`.include? "198.38.24")
+  if !(`netstat -nr`.include? "198.38.")
     puts "Adding routes to host computer..."
     if RUBY_PLATFORM =~ /darwin/
       cmd = "sudo route add 198.38.24.0/21 198.38.22.126"
@@ -40,7 +40,7 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "ubuntu/trusty64"
-
+  
   config.vm.network "public_network", bridge: devconfig["network_interface"]
   config.vm.network "forwarded_port", guest: 8080, host: 8080
 
@@ -50,6 +50,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
     vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
     vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+    # vb.gui = true
   end
 
   config.vm.synced_folder ".", "/vagrant", disabled: true

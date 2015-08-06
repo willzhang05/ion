@@ -119,6 +119,10 @@ label {
     padding-left: 5px;
 }
 
+tt {
+    font-family: monospace;
+}
+
 button,
 a.button,
 input[type="button"],
@@ -345,7 +349,7 @@ table[data-sortable] th, table[data-sortable] td {
     padding: 10px 15px 0 0;
 }
 
-tr td {
+tr td:not(:last-child) {
     padding: 0 8px 0 0;
 }
 
@@ -382,4 +386,37 @@ td.list-item {
         margin-top: 0!important;
         background-color: transparent;
     }
+
+    * {
+        transition: initial !important;
+        -webkit-transition: initial !important;
+        -moz-transition: initial !important;
+        -ms-transition: initial !important;
+        -o-transition: initial !important;
+    }
+}
+
+p.narrow-paragraph {
+    max-width: 400px;
+}
+
+a.button.small-button,
+button.small-button,
+input.small-button {
+    font-size: 10px;
+    padding: 1px 5px;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+
+
+table.fancy-table td, table.fancy-table th {
+    padding: 5px 10px;
+}
+
+table.fancy-table tbody tr:nth-child(odd) {
+    background-color: rgba(0,0,0,0.05);
 }

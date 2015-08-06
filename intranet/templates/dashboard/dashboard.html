@@ -8,15 +8,21 @@
 
 {% block css %}
     {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/events.css' %}" />
     <link rel="stylesheet" type="text/css" href="{% static 'css/dashboard.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/dashboard.widgets.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/schedule.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/schedule.widget.css' %}" />
 {% endblock %}
 
 {% block js %}
     {{ block.super }}
+
     <script type="text/javascript" src="{% static 'js/dashboard/eighth-widget.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/schedule.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/dashboard/announcements.js' %}"></script>
 
-    <style>
+    <style type="text/css">
         div[data-placeholder]:not(:focus):not([data-div-placeholder-content]):before {
             content: attr(data-placeholder);
             float: left;
@@ -29,110 +35,15 @@
 {% endblock %}
 
 {% block main %}
-<div class="widgets" style="visibility:visible">
+<div class="widgets">
 {% if request.user.is_student %}
-    <div class="widget eighth-widget">
-        <div class="widget-title">
-            <h2>
-                Upcoming Eighth Periods
-            </h2>
-            <div class="info">
-                <a href="{% url 'eighth_signup' %}" class="ui-link">View more blocks</a>
-            </div>
-            <!--div class="info warning">
-                <i class="fa fa-warning-sign"></i>
-                15 Minutes Left to Sign Up
-            </div-->
-        </div>
-        <div class="widget-content">
-        {% for block in schedule %}
-            <div class="eighth-block clickable {{ block.flags }}">
-                <div class="block-header">
-                    <span class="block-letter"{% if block.block_letter_width %} style="width: {{ block.block_letter_width }}px"{% endif %}>
-                        {{ block.block_letter }}
-                    </span>
-                    {{ block.date|date:"D, N j" }}
-                    {% if block.locked %}
-                        <span class="block-signup locked">
-                            <i class="fa fa-lock"></i>
-                            {% if block.current_signup %}
-                                {% if block.current_signup_cancelled %}Cancelled - {% endif %}{{ block.current_signup }}
-                            {% else %}
-                                No activity selected
-                            {% endif %}
-                        </span>
-                        <a href="{% url 'eighth_signup' block.id %}" class="ui-link">Locked</a>
-                    {% elif block.current_signup %}
-                        <span class="block-signup">
-                            {% if block.current_signup_cancelled %}Cancelled - {% endif %}{{ block.current_signup }}
-                        </span>
-                        <a href="{% url 'eighth_signup' block.id %}" class="ui-link">Change</a>
-                    {% else %}
-                        <span class="block-signup no-activity-selected">
-                            No activity selected
-                        </span>
-                        <a href="{% url 'eighth_signup' block.id %}" class="ui-link">Sign Up</a>
-                    {% endif %}
-                </div>
-            </div>
-        {% empty %}
-            <div class="eighth-block">
-                <div class="block-header">
-                There are no blocks available at this time.
-                </div>
-            </div>
-        {% endfor %}
-        </div>
-    </div>
+    {% include "eighth/signup_widget.html" %}
 {% endif %}
 {% if request.user.is_teacher or eighth_sponsor %}
-    <div class="widget sponsor-widget">
-        <div class="widget-title">
-            <h2>
-                Take Attendance
-            </h2>
-            <div class="info">
-                <a href="{% url 'eighth_attendance_choose_scheduled_activity' %}" class="ui-link">View more blocks</a>
-            </div>
-        </div>
-        <div class="widget-content">
-        {% for schact in sponsor_schedule %}
-            <div class="eighth-block">
-                <div class="block-header{% if schact.activity %} clickable{% endif %}">
-                    <span class="block-letter"{% if schact.block_letter_width %} style="width: {{ schact.block_letter_width }}px"{% endif %}>
-                        {{ schact.block.block_letter }}
-                    </span>
-                    {{ schact.block.date|date:"D, N j" }}
-                    {% if schact.activity %}
-                        <span class="block-sponsorship">
-                            {{ schact.activity }}
-                        </span>
-                        <a href="{% url 'eighth_take_attendance' schact.id %}" class="block-attendance-take ui-link">
-                        {% if schact.attendance_taken %}
-                            Modify
-                        {% elif schact.block.locked %}
-                            Take Now
-                        {% else %}
-                            View
-                        {% endif %}
-                        </a>
-                    {% else %}
-                        <span class="block-signup no-activity-selected">
-                            Not sponsoring an activity
-                        </span>
-                    {% endif %}
-                </div>
-            </div>
-        {% empty %}
-            <div class="eighth-block">
-                <div class="block-header">
-                    You are not sponsoring any activities.
-                </div>
-            </div>
-        {% endfor %}
-        </div>
-    </div>
+    {% include "eighth/attendance_widget.html" %}
 {% endif %}
+
+{% include "schedule/widget.html" %}
 </div>
 
 <div class="announcements primary-content">
@@ -145,51 +56,56 @@
                     <i class="fa fa-plus"></i>
                     Add
                 </a>
-            {% endif %}
-
-            <a class="button announcement-request" href="{% url 'request_announcement' %}">
+            {% else %}
+                <a class="button announcement-request" href="{% url 'request_announcement' %}">
                     <i class="fa fa-file-text-o"></i>
                     Request Post
                 </a>
+            {% endif %}
             </span>
-
-
     </div>
-    <div class="announcements-container">
-        {% for announcement in announcements %}
-            <div class="announcement" data-id="{{ announcement.id }}">
-                <h3>
-                    {{ announcement.title }}
-                    {% if request.user.is_announcements_admin %}
-                        <div class="announcement-icon-wrapper">
-                            <a href="{% url 'modify_announcement' announcement.id %}">
-                                <i class="announcement-icon fa fa-pencil"></i>
-                            </a>
-                            <a href="" class="announcement-delete" onclick="return false" data-id="{{ announcement.id }}">
-                                <i class="announcement-icon fa fa-trash-o"></i>
-                            </a>
-                        </div>
-                    {% endif %}
-                </h3>
 
-                <div class="announcement-metadata">
-                    by {{ announcement.author|escape }} &bull; {{ announcement.updated|fuzzy_date|capfirst }} &bull; to
-                    {% for group in announcement.groups.all %}
-                        {{ group }}
-                        {% if not forloop.last %},{% endif %}
-                    {% empty %}
-                        everyone
+    <div class="announcements-container">
+        {% if announcements_admin %}
+            {% if awaiting_teacher or awaiting_approval %}
+                <div class="announcement announcement-meta">
+                {% if awaiting_approval %}
+                    <h3 style="color: orange">
+                    <i class="fa fa-exclamation-circle"></i> There {% if awaiting_approval|length == 1 %} is 1 announcement request{% else %}are {{ awaiting_approval|length }} announcement requests{% endif %} waiting</h3>
+                    <ul>
+                    {% for req in awaiting_approval %}
+                        <li><a href="{% url 'admin_approve_announcement' req.id %}">{{ req }}</a> -- requested by {{ req.user.full_name }}</li>
                     {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if awaiting_teacher %}
+                    <h3>
+                    <i class="fa fa-info-circle"></i> There {% if awaiting_teacher|length == 1 %} is 1 announcement request{% else %}are {{ awaiting_teacher|length }} announcement requests{% endif %} pending</h3>
+                    <ul>
+                    {% for req in awaiting_teacher %}
+                        <li><a href="{% url 'admin_approve_announcement' req.id %}">{{ req }}</a> -- requested by {{ req.user.full_name }}, awaiting teacher approval</li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
                 </div>
-                <div class="announcement-content">
-                    {{ announcement.content|safe }}
-                </div>
-            </div>
+            {% endif %}
+        {% endif %}
+
+
+        {% for announcement in announcements %}
+            {% include "announcements/announcement.html" %}
         {% empty %}
             <div class="announcement">
                 There are no announcements to display at this time.
             </div>
         {% endfor %}
+
+        {% if start_num > 0 %}
+            <a href="?start={{ prev_page }}" class="button" style="float:left">&larr; Newer Posts</a>
+        {% endif %}
+        {% if more_announcements %}
+            <a href="?start={{ end_num }}" class="button" style="float:right">Older Posts &rarr;</a>
+        {% endif %}
     </div>
 </div>
 

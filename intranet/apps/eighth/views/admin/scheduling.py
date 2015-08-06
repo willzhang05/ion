@@ -2,11 +2,12 @@
 from __future__ import unicode_literals
 
 import logging
+from datetime import timedelta
 from django.contrib import messages
 from django.forms.formsets import formset_factory
 from django.shortcuts import render, redirect
-from rest_framework.renderers import JSONRenderer
 from formtools.wizard.views import SessionWizardView
+from .....utils.serialization import safe_json
 from ....auth.decorators import eighth_admin_required
 from ...models import (
     EighthBlock, EighthActivity, EighthScheduledActivity, EighthSponsor,
@@ -57,7 +58,12 @@ def schedule_activity_view(request):
 
                     # Uncancel if this activity/block pairing was already
                     # created and cancelled
-                    instance.cancelled = not form["scheduled"].value()
+                    if not form["scheduled"].value():
+                        instance.cancelled = True
+                        instance.cancel()
+                    else:
+                        instance.cancelled = False
+                        instance.uncancel()
                     instance.save()
                 else:
                     # Instead of deleting and messing up attendance,
@@ -77,9 +83,12 @@ def schedule_activity_view(request):
                         logger.debug(all_sched_act)
                         for s in all_sched_act:
                             s.cancelled = True
+                            s.cancel()
                             s.save()
                     else:
                         schact.update(cancelled=True)
+                        for s in schact:
+                            s.cancel()
 
             messages.success(request, "Successfully updated schedule.")
 
@@ -93,7 +102,7 @@ def schedule_activity_view(request):
     activity_id = request.GET.get("activity", None)
     activity = None
 
-    if activity_id is not None:
+    if activity_id is not None and len(activity_id) > 0:
         try:
             activity = EighthActivity.undeleted_objects.get(id=activity_id)
         except (EighthActivity.DoesNotExist, ValueError):
@@ -103,7 +112,10 @@ def schedule_activity_view(request):
     all_rooms = {r["id"]: r for r in EighthRoom.objects.values()}
 
     for sid, sponsor in all_sponsors.items():
-        all_sponsors[sid]["full_name"] = sponsor["first_name"] + " " + sponsor["last_name"]
+        if sponsor["show_full_name"]:
+            all_sponsors[sid]["full_name"] = sponsor["last_name"] + ", " + sponsor["first_name"]
+        else:
+            all_sponsors[sid]["full_name"] = sponsor["last_name"]
 
     for rid, room in all_rooms.items():
         all_rooms[rid]["description"] = room["name"] + " (" + str(room["capacity"]) + ")"
@@ -117,14 +129,15 @@ def schedule_activity_view(request):
         "sponsors": all_sponsors,
         "all_signups": all_signups,
         "rooms": all_rooms,
-        "sponsors_json": JSONRenderer().render(all_sponsors),
-        "rooms_json": JSONRenderer().render(all_rooms)
+        "sponsors_json": safe_json(all_sponsors),
+        "rooms_json": safe_json(all_rooms)
     }
 
     if activity is not None:
         start_date = get_start_date(request)
-        blocks = EighthBlock.objects.filter(date__gte=start_date)
+        end_date = start_date + timedelta(days=60)
 
+        blocks = EighthBlock.objects.filter(date__gte=start_date, date__lte=end_date)
         initial_formset_data = []
 
         sched_act_queryset = (EighthScheduledActivity.objects
@@ -273,15 +286,47 @@ class EighthAdminTransferStudentsWizard(SessionWizardView):
             activity=dest_activity
         )
 
-        source_scheduled_activity.eighthsignup_set.update(
-            scheduled_activity=dest_scheduled_activity
-        )
+        req = "source_act={}&dest_act={}".format(source_scheduled_activity.id, dest_scheduled_activity.id)
 
-        messages.success(self.request, "Successfully transfered students.")
-        return redirect("eighth_admin_dashboard")
+        return redirect("/eighth/admin/scheduling/transfer_students_action?" + req)
 
 transfer_students_view = eighth_admin_required(
     EighthAdminTransferStudentsWizard.as_view(
         EighthAdminTransferStudentsWizard.FORMS
     )
 )
+
+@eighth_admin_required
+def transfer_students_action(request):
+    """ Do the actual process of transferring students. """
+    if "source_act" in request.GET:
+        source_act = EighthScheduledActivity.objects.get(id=request.GET.get("source_act"))
+    elif "source_act" in request.POST:
+        source_act = EighthScheduledActivity.objects.get(id=request.POST.get("source_act"))
+    else:
+        raise Http404
+
+    if "dest_act" in request.GET:
+        dest_act = EighthScheduledActivity.objects.get(id=request.GET.get("dest_act"))
+    elif "dest_act" in request.POST:
+        dest_act = EighthScheduledActivity.objects.get(id=request.POST.get("dest_act"))
+    else:
+        raise Http404
+
+    num = source_act.members.count()
+
+    context = {
+        "admin_page_title": "Transfer Students",
+        "source_act": source_act,
+        "dest_act": dest_act,
+        "num": num
+    }
+
+    if request.method == "POST":
+        source_act.eighthsignup_set.update(
+            scheduled_activity=dest_act
+        )
+        messages.success(request, "Successfully transfered {} students.".format(num))
+        return redirect("eighth_admin_dashboard")
+    else:
+        return render(request, "eighth/admin/transfer_students.html", context)

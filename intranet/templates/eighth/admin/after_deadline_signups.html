@@ -18,7 +18,7 @@
 
 
 {% block admin_main %}
-
+    <p>The date range below is for the date in which the after-deadline signup was created, not the date of the block in question.</p>
     <form action="" method="get">
         Results from <input type="text" class="datepicker" name="start" value="{{ start_date|date:'m/d/Y' }}" > to <input type="text" class="datepicker" name="end" value="{{ end_date|date:'m/d/Y' }}"> <input type="submit" value="Go">
     </form>
@@ -29,7 +29,7 @@
     <br />
     {% if signups %}
         Click on column titles to sort.
-        <table data-sortable class="zebra">
+        <table data-sortable class="zebra fancy-table" style="min-width: 1000px">
             <thead>
                 <tr>
                     <th>Time</th>
@@ -55,6 +55,8 @@
                 {% endfor %}
             </tbody>
         </table>
+    {% else %}
+        <p>There were no results.</p>
     {% endif %}
 
 {% endblock %}

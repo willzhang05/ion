@@ -1,19 +1,38 @@
 {% extends "eighth/admin/eighth_admin_page_base.html" %}
+{% load staticfiles %}
+
+{% block js %}
+    <script type="text/javascript" src="{% static 'vendor/sortable-0.6.0/js/sortable.min.js' %}"></script>
+    {{ block.super }}
+    <script type="text/javascript">
+        $(function() {
+            Sortable.init();
+        });
+    </script>
+{% endblock %}
+
+{% block css %}
+    <link rel="stylesheet" type="text/css" href="{% static 'vendor/sortable-0.6.0/css/sortable-theme-minimal.css' %}">
+    {{ block.super }}
+{% endblock %}
 
 {% block admin_main %}
 
 <h4>Select a Block:</h4>
 
 <select class="url-param-selector" data-param="block" placeholder="Select or search for a block">
+    <option value="">Select or search for a block</option>
     {% for block in blocks %}
         <option value="{{ block.id }}"{% if block == chosen_block %} selected{% endif %}>{{ block.id }}: {{ block.date|date:"EIGHTH_BLOCK_DATE_FORMAT" }} ({{ block.block_letter }})</option>
     {% endfor %}
 </select>
 
 {% if chosen_block %}
-    <table class="fancy-table">
+    Click on column titles to sort.
+    <table data-sortable class="fancy-table">
         <thead>
             <tr>
+                <th>Activity ID</th>
                 <th>Activity</th>
                 <th>Sponsors</th>
                 <th></th>
@@ -22,10 +41,11 @@
         <tbody>
             {% for scheduled_activity in scheduled_activities %}
                 <tr>
+                    <td>{{ scheduled_activity.activity.aid }}</td>
                     <td>{{ scheduled_activity.activity.name_with_flags }}</td>
                     <td>{{ scheduled_activity.get_true_sponsors|join:", "}}</td>
                     <td>
-                        <a class="button" href="{% url 'eighth_admin_take_attendance' scheduled_activity.id %}">Take Attendance</a>
+                        <a class="button" href="{% url 'eighth_admin_take_attendance' scheduled_activity.id %}?no_attendance={{ chosen_block.id }}">Take Attendance</a>
                     </td>
                 </tr>
             {% endfor %}

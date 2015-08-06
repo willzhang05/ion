@@ -168,17 +168,37 @@
 .middle > .block-title {
     float: left;
     margin-left: 5px;
+    /* FIXME: hardcoded background color */
+    background-color: rgb(242, 242, 242);
 }
 
-.middle h2 {
+.middle > .block-title h2 {
     font-size: 20px;
     font-weight: bold;
     margin: 0;
+    padding-bottom: 0;
 }
 
 .middle h4 {
     font-size: 16px;
     margin: 0;
+}
+
+.middle .unsignup {
+    position: absolute;
+    right: 26px;
+}
+
+@media (max-width: 700px) {
+    .middle .unsignup {
+        margin-top: -10px;
+    }
+}
+
+@media (max-width: 500px) {
+    .middle .unsignup {
+        margin-top: -30px;
+    }
 }
 
 #activity-picker {
@@ -375,7 +395,7 @@ h5.hidden {
     white-space: nowrap;
     text-overflow: ellipsis;
     display: inline-block;
-    width: 70%;
+    width: auto;
 }
 
 .activity-sponsors {
@@ -466,16 +486,46 @@ h5.hidden {
 
 
 @media print {
-    div.primary-content.eighth-signup {
-        margin-left: 0;
+    * {
+        transition: initial !important;
+        -webkit-transition: initial !important;
+        -moz-transition: initial !important;
+        -ms-transition: initial !important;
+        -o-transition: initial !important;
+    }
+
+    body > .main > div.primary-content {
+        margin-left: 0 !important;
     }
 
     div.day-picker {
         display: none;
     }
 
+    html > body {
+        min-width: initial;
+    }
+
+    div.main {
+        height: 100%;
+    }
+
+    div#activity-picker {
+        height: auto;
+    }
+
     div#activity-list {
         width: 100%;
+        position: static;
+    }
+
+    #activity-list li.selected {
+        font-weight: normal;
+        background: inherit;
+    }
+
+    #activity-list li:nth-child(odd) {
+        background-color: rgba(0,0,0,0.05) !important;
     }
 
     div#activity-picker div#activity-detail {
@@ -484,6 +534,13 @@ h5.hidden {
 
     div#activity-picker div#activity-detail.selected {
         display: block;
+    }
+
+    div#activity-picker div#activity-detail {
+        position: static;
+        width: 100%;
+        width: calc(100% - 15px);
+        float: none;
     }
 
 }
@@ -497,4 +554,13 @@ h5.hidden {
     -moz-transition: all 0.2s ease;
     -ms-transition: all 0.2s ease;
     -o-transition: all 0.2s ease;
+}
+
+.search-noresults {
+    display: none;
+}
+
+.middle-wrapper {
+    display: table;
+    width: 100%;
 }

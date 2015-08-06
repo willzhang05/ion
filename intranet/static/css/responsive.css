@@ -11,10 +11,8 @@
         padding-right: 316px; /* 116px less */
     }
 
-
     .main .widgets,
-    .main .announcements
-    {
+    .main .announcements {
         transition: all 0.4s ease;
         -webkit-transition: all 0.4s ease;
         -moz-transition: all 0.4s ease;
@@ -44,7 +42,7 @@
     }
 }
 
-@media (max-width: 500px) {
+@media (max-width: 550px) {
     .main div.widgets > .widget {
         position: static;
     }
@@ -52,6 +50,32 @@
     .main div.widgets {
         width: 100%;
     }
+}
+
+/* eighth signup info */
+.eighth-signup .middle .desktop-info {
+    width: 300px;
+    height: 50px;
+    position: absolute;
+    right: 100px;
+    color: gray;
+    z-index: -1;
+}
+
+.eighth-signup .middle .desktop-info .arrow-left {
+    position: absolute;
+    top: 20px;
+    left: -40px;
+    font-size: 30px;
+    color: gray;
+}
+
+.eighth-signup .middle .desktop-info .arrow-right {
+    position: absolute;
+    top: -20px;
+    right: 10px;
+    font-size: 30px;
+    color: gray;
 }
 
 /* EIGHTH */
@@ -75,6 +99,10 @@
 
     #activity-picker div#activity-list li span.activity-sponsors {
         margin-right: 20px;
+    }
+
+    .eighth-signup .middle .desktop-info {
+        display: none;
     }
 }
 
@@ -146,6 +174,16 @@
 
     #activity-picker div#activity-list li span.activity-sponsors {
         margin-right: 0;
+    }
+
+    /* comments field shifts to next line */
+    .block-title .block-comments {
+        display: inline-block;
+        clear: left;
+    }
+
+    .block-title .block-comments > span {
+        display: none;
     }
 }
 

@@ -69,6 +69,7 @@ table.user-info-contact tr > * {
 .user-info table tr > th {
 	text-align: left;
     font-weight: bold;
+    padding: 5px;
 }
 
 .user-info-left {
@@ -87,6 +88,10 @@ table.user-info-contact tr > * {
 .user-info-eighth {
     clear: both;
     padding-top: 20px;
+}
+
+.primary-content.eighth-signup .user-info-eighth {
+    padding-top: 0;
 }
 
 @media (max-width: 550px) {

@@ -6,9 +6,16 @@ from django import forms
 from django.db.models import Q
 from ....users.models import User
 from ...models import EighthActivity, EighthScheduledActivity
-
 logger = logging.getLogger(__name__)
 
+
+class ActivityDisplayField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return "{}: {}".format(obj.aid, obj.name)
+
+class ActivityMultiDisplayField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        return "{}: {}".format(obj.aid, obj.name)
 
 class ActivitySelectionForm(forms.Form):
 
@@ -30,17 +37,22 @@ class ActivitySelectionForm(forms.Form):
                                                        .exclude(cancelled=True)
                                                        .filter(block=block)
                                                        .values_list("activity__id", flat=True))
-            queryset = EighthActivity.objects.filter(id__in=activity_ids)
+            queryset = (EighthActivity.objects.filter(id__in=activity_ids)
+                                              .order_by("name"))
         else:
             if sponsor is not None:
                 queryset = (EighthActivity.undeleted_objects
-                                          .filter(sponsors=sponsor))
+                                          .filter(sponsors=sponsor)
+                                          .order_by("name"))
             else:
-                queryset = EighthActivity.undeleted_objects.all()
+                queryset = (EighthActivity.undeleted_objects
+                                          .all()
+                                          .order_by("name"))
 
-        self.fields["activity"] = forms.ModelChoiceField(queryset=queryset,
-                                                         label=label,
-                                                         empty_label="Select an activity")
+
+        self.fields["activity"] = ActivityDisplayField(queryset=queryset,
+                                                       label=label,
+                                                       empty_label="Select an activity")
 
 
 class QuickActivityForm(forms.ModelForm):
@@ -49,9 +61,8 @@ class QuickActivityForm(forms.ModelForm):
         model = EighthActivity
         fields = ["name"]
 
-
 class ActivityMultiSelectForm(forms.Form):
-    activities = forms.ModelMultipleChoiceField(queryset=None)
+    activities = ActivityMultiDisplayField(queryset=None)
 
     def __init__(self, label="Activities", *args, **kwargs):
         super(ActivityMultiSelectForm, self).__init__(*args, **kwargs)
@@ -59,7 +70,7 @@ class ActivityMultiSelectForm(forms.Form):
 
 
 class ScheduledActivityMultiSelectForm(forms.Form):
-    activities = forms.ModelMultipleChoiceField(queryset=None)
+    activities = ActivityMultiDisplayField(queryset=None)
 
     def __init__(self, label="Activities", block=None, *args, **kwargs):
         super(ScheduledActivityMultiSelectForm, self).__init__(*args, **kwargs)
@@ -70,9 +81,11 @@ class ScheduledActivityMultiSelectForm(forms.Form):
                                                    .exclude(cancelled=True)
                                                    .filter(block=block)
                                                    .values_list("activity__id", flat=True))
-            queryset = EighthActivity.objects.filter(id__in=activity_ids)
+            queryset = (EighthActivity.objects.filter(id__in=activity_ids)
+                                              .order_by("name"))
         else:
-            queryset = EighthActivity.undeleted_objects.all()
+            queryset = (EighthActivity.undeleted_objects.all()
+                                                        .order_by("name"))
 
         logger.debug(queryset)
         self.fields["activities"].queryset = queryset
@@ -89,8 +102,13 @@ class ActivityForm(forms.ModelForm):
         # Simple way to filter out teachers without hitting LDAP. This
         # shouldn't be a problem unless the username scheme changes and
         # the consequences of error are not significant.
-        self.fields["users_allowed"].queryset = (User.objects
-                                                     .filter(username__startswith="2"))
+
+        # TODO: What we would like to do here (from users.forms):
+        # self.fields["users_allowed"] = SortedUserMultipleChoiceField(queryset=User.objects.get_students())
+        # HOWEVER: this will result in LDAP information being queried for *all 1800 users.*
+        # We need a better way to accomplish this. The solution below works because it only prints
+        # the username field which doesn't require an LDAP query to access.
+        self.fields["users_allowed"].queryset = User.objects.get_students()
 
         self.fields["presign"].label = "48 Hour"
 
@@ -101,6 +119,7 @@ class ActivityForm(forms.ModelForm):
             "description",
             "sponsors",
             "rooms",
+            "aid",
             "presign",
             "one_a_day",
             "both_blocks",

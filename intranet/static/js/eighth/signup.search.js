@@ -1,26 +1,57 @@
 $(document).ready(function() {
 
+    searchDebug = false;
+
     eighthSearch = function() {
         var _st = +new Date();
         var searchStr = $(this).val().toLowerCase();
-        var searchSplit = $.trim(searchStr).split(" ");
+        searchStr = $.trim(searchStr);
+        var searchSplit = [];
+        if(searchStr.indexOf('"') != -1) {
+            var quoteSplit = searchStr.split('"');
+            for(var i=0; i<quoteSplit.length; i++) {
+                if(i == 0 || i == quoteSplit.length - 1) {
+                    // first and last entries aren't inside the quote
+                    var innerSplit = quoteSplit[i].split(" ");
+                    for(var j=0; j<innerSplit.length; j++) {
+                        var inw = innerSplit[j];
+                        if(inw.length > 0) {
+                            searchSplit.push($.trim(inw));
+                        }
+                    }
+                } else {
+                    searchSplit.push($.trim(quoteSplit[i]));
+                }
+            }
+        } else {
+            var spaceSplit = searchStr.split(" ");
+            for(var i=0; i<spaceSplit.length; i++) {
+                var spl = spaceSplit[i];
+                if(spl.length > 0) {
+                    searchSplit.push($.trim(spl));
+                }
+            }
+        }
 
         // console.log("query:", searchStr);
 
         var results = [];
         var activities = window.activityModels._byId;
 
-        $("#activity-list li").each(function() {
+        var show_adminact = false;
+
+        $("#activity-list li[data-activity-id]").each(function() {
             var aid = $(this).data("activity-id");
             var activity = activities[aid].attributes;
 
             var shows = [];
+            var queries = [];
 
             for(sp in searchSplit) {
                 var search = searchSplit[sp];
 
                 // blank entry
-                if(search.length < 1) {
+                if(search.length < 1 || search == '*') {
                     show = true;
                     results.push(aid);
                     continue; // skip
@@ -28,7 +59,7 @@ $(document).ready(function() {
 
                 // - = inverse
                 if(search.substring(0, 1) == "-") {
-                    console.log("INVERSE");
+                    //console.log("INVERSE");
                     search = search.substring(1);
                     var inv = true;
                 } else {
@@ -85,6 +116,11 @@ $(document).ready(function() {
                     // admin
                     if(cmd[1].substring(0,1) == "a" && activity.administrative == fl) {
                         show = true;
+                        show_adminact = true;
+                    }
+                    // presign
+                    if(cmd[1].substring(0,1) == "p" && activity.presign == fl) {
+                        show = true;
                     }
                     // sticky
                     if(cmd[1].substring(0,2) == "st" && activity.sticky == fl) {
@@ -101,20 +137,20 @@ $(document).ready(function() {
                     // selected
                     if(cmd[1].substring(0,2) == "se" && activity.selected == fl) {
                         show = true;
+                        show_adminact = true;
                     }
                 } else if(inv) {
                     show = !show;
                 }
 
-                if(search == "and") {
-                    shows.push(search);
-                } else {
-                    shows.push(show);
-                }
+                
+                queries.push(search);
+                shows.push(show);
             }
             var show = false;
 
-            console.debug("activity", aid, shows);
+            // console.debug("activity", aid, shows);
+            /* imply OR:
             if(shows.indexOf("and") != -1) {
                 var nshows = [];
                 for(i in shows) {
@@ -131,9 +167,35 @@ $(document).ready(function() {
                 for(i in nshows) {
                     if(!nshows[i]) show = false;
                 }
+            } */
+
+            if(queries.indexOf("or") != -1) {
+                var nshows = [];
+                for(i in queries) {
+                    if(queries[i] == "or") {
+                        //console.debug("OR:", i);
+                        i = parseInt(i);
+                        if(i-1 >= 0 && i+1 < queries.length) {
+                            //console.debug("orqs:", queries[i-1], queries[i+1]);
+                            //console.debug("orqs:", shows[i-1], shows[i+1]);
+                            nshows.push(shows[i-1] || shows[i+1]);
+                        }
+                    }
+                }
+                for(i in nshows) {
+                    if(nshows[i]) show = true;
+                }
             } else {
+                /* imply OR:
                 for(i in shows) {
                     if(shows[i]) show = true;
+                }
+                */
+
+                /* imply AND */
+                show = true;
+                for(i in shows) {
+                    if(!shows[i]) show = false;
                 }
             }
 
@@ -142,7 +204,7 @@ $(document).ready(function() {
 
         // console.log("results:", results);
 
-        $("#activity-list li").each(function() {
+        $("#activity-list li[data-activity-id]").each(function() {
             var aid = $(this).data("activity-id");
 
             if(results.indexOf(aid) != -1) {
@@ -153,7 +215,23 @@ $(document).ready(function() {
 
         });
 
-        console.debug("time:", +new Date - _st);
+        if(results.length == 0) {
+            // No results
+            $("#activity-list ul.search-noresults").show();
+        } else {
+            $("#activity-list ul.search-noresults").hide();
+        }
+
+        if(show_adminact) {
+            $("#activity-list").addClass("show-administrative");
+        } else {
+            $("#activity-list").removeClass("show-administrative");
+        }
+
+        var tm = (+new Date - _st);
+        if(searchDebug) {
+            console.info(searchSplit + " search time: " + tm);
+        }
 
     }
 
@@ -161,4 +239,20 @@ $(document).ready(function() {
         .removeAttr("disabled")
         .on("keyup", eighthSearch)
         .on("search", eighthSearch);
+
+
+    badgeClickUpdate = function() {
+        $(".badge[data-append-search]").click(function() {
+            var app = $(this).attr("data-append-search");
+            var inp = $(".search-wrapper input");
+            var v = inp.val();
+            console.debug("adding tag:", app, v);
+            if(v.indexOf(app) == -1) {
+                inp.val(v + (v.length > 0 ? " " : "") + app);
+            }
+            inp.trigger("keyup");
+        });
+    }
+
+    badgeClickUpdate();
 });

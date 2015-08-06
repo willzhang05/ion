@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import csv
+import logging
 from collections import defaultdict
 from six.moves import cPickle as pickle
 from django import http
@@ -14,6 +16,7 @@ from ...forms.admin.rooms import RoomForm
 from ...models import EighthRoom, EighthBlock, EighthScheduledActivity
 from ...utils import get_start_date
 
+logger = logging.getLogger(__name__)
 
 @eighth_admin_required
 def add_room_view(request):
@@ -128,28 +131,15 @@ def room_utilization_for_block_view(request):
     block_id = request.GET.get("block", None)
     block = None
 
-    if block_id is not None:
-        try:
-            block = EighthBlock.objects.get(id=block_id)
-        except (EighthBlock.DoesNotExist, ValueError):
-            pass
+    if block_id:
+        return redirect("eighth_admin_room_utilization", block_id, block_id)
     else:
         blocks = blocks.filter(date__gte=get_start_date(request))
-
-    context = {
-        "blocks": blocks,
-        "chosen_block": block
-    }
-
-    if block is not None:
-        scheduled_activities = (EighthScheduledActivity.objects
-                                                       .exclude(activity__deleted=True)
-                                                       .exclude(cancelled=True)
-                                                       .filter(block=block))
-        context["scheduled_activities"] = scheduled_activities
-
-    context["admin_page_title"] = "Room Utilization for Block"
-    return render(request, "eighth/admin/room_utilization_for_block.html", context)
+        context = {
+            "admin_page_title": "Room Utilization",
+            "blocks": blocks
+        }
+        return render(request, "eighth/admin/room_utilization_for_block.html", context)
 
 
 class EighthAdminRoomUtilizationWizard(SessionWizardView):
@@ -194,22 +184,107 @@ class EighthAdminRoomUtilizationWizard(SessionWizardView):
     def done(self, form_list, **kwargs):
         start_block = form_list[0].cleaned_data["block"]
         end_block = form_list[1].cleaned_data["block"]
-        sched_acts = (EighthScheduledActivity.objects
-                                             .exclude(activity__deleted=True)
-                                             .exclude(cancelled=True)
-                                             .filter(block__date__gte=start_block.date,
-                                                     block__date__lte=end_block.date)
-                                             .order_by("block__date",
-                                                       "block__block_letter"))
+        return redirect("eighth_admin_room_utilization", start_block.id, end_block.id)
+        
+@eighth_admin_required
+def room_utilization_action(request, start_id, end_id):
+    try:
+        start_block = EighthBlock.objects.get(id=start_id)
+        end_block = EighthBlock.objects.get(id=end_id)
+    except EighthBlock.DoesNotExist:
+        raise http.Http404
 
-        context = {
-            "scheduled_activities": sched_acts,
-            "admin_page_title": "Room Utilization",
-            "start_block": start_block,
-            "end_block": end_block
-        }
+    sched_acts = (EighthScheduledActivity.objects
+                                         .exclude(activity__deleted=True)
+                                        #.exclude(cancelled=True) # include cancelled activities
+                                         .filter(block__date__gte=start_block.date,
+                                                 block__date__lte=end_block.date)
+                                         .order_by("block__date",
+                                                   "block__block_letter"))
+    all_rooms = EighthRoom.objects.all().order_by("name")
 
-        return render(self.request, "eighth/admin/room_utilization.html", context)
+    room_ids = request.GET.getlist("room")
+    if "room" in request.GET:
+        rooms = EighthRoom.objects.filter(id__in=room_ids)
+        all_sched_acts = sched_acts
+        sched_acts = []
+        for sched_act in all_sched_acts:
+            if len(set(rooms).intersection(set(sched_act.get_true_rooms()))) > 0:
+                sched_acts.append(sched_act)
+    else:
+        rooms = all_rooms
+
+    # If a "show" GET parameter is defined, only show the values that are given.
+    show_vals = request.GET.getlist("show")
+    show_opts = ["block", "rooms", "aid", "activity", "sponsors", "signups", "capacity", "comments", "admin_comments"]
+    show_opts_defaults = ["block", "rooms", "aid", "activity", "sponsors", "signups", "capacity"]
+    show_opts_hidden = ["comments", "admin_comments"]
+    if len(show_vals) == 0:
+        show = {name: True for name in show_opts_defaults}
+        show.update({name: False for name in show_opts_hidden})
+    else:
+        show = {name: name in show_vals for name in show_opts}
+
+    hide_administrative = "hide_administrative" in request.GET and request.GET.get("hide_administrative") != "0"
+    only_show_overbooked = "only_show_overbooked" in request.GET and request.GET.get("only_show_overbooked") != "0"
+
+    context = {
+        "scheduled_activities": sched_acts,
+        "admin_page_title": "Room Utilization",
+        "start_block": start_block,
+        "end_block": end_block,
+        "show": show,
+        "rooms": rooms,
+        "all_rooms": all_rooms,
+        "room_ids": [int(i) for i in room_ids],
+        "hide_administrative": hide_administrative,
+        "only_show_overbooked": only_show_overbooked
+    }
+
+    if request.resolver_match.url_name == "eighth_admin_room_utilization_csv":
+        response = http.HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=\"room_utilization.csv\""
+
+        writer = csv.writer(response)
+
+        title_row = []
+        for opt in show_opts:
+            if show[opt]:
+                title_row.append(opt.capitalize().replace("_", " "))
+        writer.writerow(title_row)
+
+        for sch_act in sched_acts:
+            row = []
+            if sch_act.activity.administrative and hide_administrative:
+                continue
+
+            if not sch_act.is_overbooked() and only_show_overbooked:
+                continue
+
+            if show["block"]:
+                row.append(sch_act.block)
+            if show["rooms"]:
+                row.append(";".join([str(rm) for rm in sch_act.get_true_rooms()]))
+            if show["aid"]:
+                row.append(sch_act.activity.aid)
+            if show["activity"]:
+                row.append(sch_act.activity)
+            if show["sponsors"]:
+                row.append(";".join([str(sp) for sp in sch_act.get_true_sponsors()]))
+            if show["signups"]:
+                row.append(sch_act.members.count())
+            if show["capacity"]:
+                row.append(sch_act.get_true_capacity())
+            if show["comments"]:
+                row.append(sch_act.comments)
+            if show["admin_comments"]:
+                row.append(sch_act.admin_comments)
+
+            writer.writerow(row)
+
+        return response
+
+    return render(request, "eighth/admin/room_utilization.html", context)
 
 room_utilization_view = eighth_admin_required(
     EighthAdminRoomUtilizationWizard.as_view(

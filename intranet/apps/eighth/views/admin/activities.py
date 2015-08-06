@@ -3,8 +3,9 @@ from __future__ import unicode_literals
 
 from six.moves import cPickle as pickle
 import logging
-from django import http
+from django import http, forms
 from django.contrib import messages
+from django.contrib.auth.models import Group
 from django.core.urlresolvers import reverse
 from django.shortcuts import redirect, render
 from ....auth.decorators import eighth_admin_required
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 def add_activity_view(request):
     if request.method == "POST":
         form = QuickActivityForm(request.POST)
-        logger.error("{}".format(request.POST["name"]))
         if form.is_valid():
             activity = form.save()
             messages.success(request, "Successfully added activity.")
@@ -42,22 +42,40 @@ def edit_activity_view(request, activity_id):
     if request.method == "POST":
         form = ActivityForm(request.POST, instance=activity)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Successfully edited activity.")
-            return redirect("eighth_admin_dashboard")
+            try:
+                form.save()
+            except forms.ValidationError as error:
+                error = str(error)
+                messages.error(request, error)
+            else:
+                messages.success(request, "Successfully edited activity.")
+                if "add_group" in request.POST:
+                    grp_name = "Activity: {}".format(activity.name)
+                    grp, status = Group.objects.get_or_create(name=grp_name)
+                    logger.debug(grp)
+                    activity.restricted = True
+                    activity.groups_allowed.add(grp)
+                    activity.save()
+                    messages.success(request, "{} to '{}' group".format("Created and added" if status else "Added", grp_name))
+                    return redirect("eighth_admin_edit_group", grp.id)
+
+                return redirect("eighth_admin_edit_activity", activity_id)
         else:
             messages.error(request, "Error adding activity.")
     else:
         form = ActivityForm(instance=activity)
 
+    activities = EighthActivity.undeleted_objects.order_by("name")
     context = {
         "form": form,
         "admin_page_title": "Edit Activity",
         "delete_url": reverse("eighth_admin_delete_activity",
-                              args=[activity_id])
+                              args=[activity_id]),
+        "activity": activity,
+        "activities": activities
     }
 
-    return render(request, "eighth/admin/edit_form.html", context)
+    return render(request, "eighth/admin/edit_activity.html", context)
 
 
 @eighth_admin_required

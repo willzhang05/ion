@@ -1,22 +1,4 @@
 $(document).ready(function() {
-    // TODO: Move the logic from jQuery to separate functions,
-    // e.g. announcements.delete(id)
-
-    $(".announcement-delete").click(function() {
-        var announcement_id = $(this).attr("data-id"),
-            announcement_title = $(".announcement[data-id=" + announcement_id + "] > h3")[0].textContent.trim();
-
-        if(!confirm("Delete announcement \"" + announcement_title + "\"?")) return;
-
-        $.post("/announcements/delete", {"id": announcement_id})
-            .done(function(data) {
-                $(".announcement[data-id=" + announcement_id + "]").slideUp();
-                Messenger().success("Successfully deleted announcement.");
-            })
-            .fail(function(data) {
-                Messenger().error("Error deleting announcement.");
-            });
-    });
 
     $("div[data-placeholder]").on("keydown keypress input", function() {
         if(this.textContent) {
@@ -25,4 +7,35 @@ $(document).ready(function() {
             delete(this.dataset.divPlaceholderContent);
         }
     });
+
+    $(".announcement .announcement-toggle").click(function(e) {
+        e.preventDefault();
+        var announcement = $(this).parent().parent().parent();
+        var announcementContent = $(".announcement-toggle-content", announcement);
+        var icon = $(this).children(0);
+        var id = announcement.attr("data-id");
+
+        var hidden = announcement.hasClass("hidden");
+        var action = hidden ? "show" : "hide";
+        $.post("/announcements/" + action + "?" + id, {announcement_id: id}, function(d) {
+            console.info("Announcement "+id+" "+action);
+        });
+        if(action == "show") {
+            icon.removeClass("fa-toggle-off")
+                    .addClass("fa-toggle-on")
+                    .attr("title", icon.attr("data-visible-title"));
+            setTimeout(function() {
+                announcement.removeClass("hidden");
+            }, 450);
+            announcementContent.slideDown(350);
+        } else {
+            icon.removeClass("fa-toggle-on")
+                    .addClass("fa-toggle-off")
+                    .attr("title", icon.attr("data-hidden-title"));;
+            setTimeout(function() {
+                announcement.addClass("hidden");
+            }, 450);
+            announcementContent.slideUp(350);
+        }
+    })
 });

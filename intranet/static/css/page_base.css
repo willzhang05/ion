@@ -118,7 +118,7 @@ h1 {
     line-height: normal;
 }
 
-.header .badged-item i {
+.header .badged-item .absence-icon {
     position: relative;
     display: inline-block;
     font-size: 17px;
@@ -132,6 +132,11 @@ h1 {
 .header .badge-wrapper {
     display: inline-block;
     line-height: normal;
+}
+
+.header .badged-item .dropdown-menu .absence-notification-icon {
+    float: left;
+    margin: 5px 10px 50px 5px;
 }
 
 .badge {
@@ -161,11 +166,33 @@ h1 {
 }
 
 .badge.red {
-    background-color: rgb(255,72,72);
+    background-color: rgb(255, 72, 72);
+}
+
+.badge.darkred {
+    background-color: rgb(181, 0, 0);
+}
+
+.badge.purple {
+    background-color: rgb(175, 0, 175);
 }
 
 .badge.green {
     background-color: rgb(55, 179, 113);
+}
+
+.badge.yellow {
+    background-color: rgb(234, 234, 13);
+    color: black;
+}
+
+.badge.orange {
+    background-color: rgb(255, 194, 81);
+    color: black;
+}
+
+.badge.blue {
+    background-color: rgb(66, 66, 206);
 }
 
 .header .username {
@@ -252,10 +279,10 @@ ul.dropdown-menu.absence-notification .arrow {
     color: rgb(150, 150, 150);
 }
 
-.header .dropdown-menu i {
+/*.header .dropdown-menu i {
     font-size: 16px;
-    /*vertical-align: bottom;*/
-}
+}*/
+
 .header .dropdown-menu .arrow {
     display: block;
     position: absolute;
@@ -292,11 +319,23 @@ ul.dropdown-menu.absence-notification .arrow {
 
 }
 
-.header .username .dropdown-menu .arrow{
+.header .username .dropdown-menu .arrow {
     /*width: 150px;*/
     right: 40px;
 }
 
+.header .dropdown-menu a {
+    line-height: 2em;
+    padding: 0 10px;
+}
+
+.header .dropdown-menu i {
+    width: 14px; /* line up */
+}
+
+.header .dropdown-menu a > i.fa-user {
+    margin-right: 0;
+}
 
 .user-name {
     margin: 0 3px;
@@ -489,4 +528,16 @@ ul.messenger.messenger-fixed.messenger-on-top {
 .selectize-control.multi .selectize-input {
     /* Fixes weird space at bottom*/
     overflow: inherit;
+}
+
+.please-wait {
+    position: absolute;
+    top: 150px;
+    left: 50%;
+    width: 600px;
+    margin-left: -300px;
+    height: 100px;
+    text-align: center;
+    background-color: #f0f0f0;
+    z-index: 99999;
 }

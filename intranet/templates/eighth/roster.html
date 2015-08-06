@@ -2,7 +2,7 @@
 {% load phone_numbers %}
 {% load staticfiles %}
 
-{% block title %}{{ block.super }} - Roster - {{ scheduled_activity.true_title }}{% endblock %}
+{% block title %}{{ block.super }} - Roster - {{ scheduled_activity }}{% endblock %}
 
 
 {% block css %}
@@ -38,10 +38,15 @@
 <div class="primary-content">
 
     {% if request.user.is_eighth_admin %}
-        <div class="eighth-header">
+        <div class="eighth-header" style="width: 200px">
             {% include "eighth/admin/start_date.html" %}
         </div>
     {% endif %}
+
+
+    <a href="{% url 'eighth_signup' scheduled_activity.block.id %}?activity={{ scheduled_activity.activity.id }}" class="button">
+        <i class="fa fa-arrow-left"></i> Sign Up
+    </a>
 
     <h2>Roster for {{ scheduled_activity }}:</h2>
     <dl>
@@ -66,25 +71,6 @@
         <dd>{{ scheduled_activity.members.all|length }} / {{ scheduled_activity.get_true_capacity }}</dd>
     </dl>
 
-    <table class="members-table fancy-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Grade</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for user in scheduled_activity.members.all %}
-            <tr class="item-row">
-                <td>{{ user.last_name }}, {{ user.first_name }}</td>
-                <td>{{ user.grade.number }}</td>
-            </tr>
-        {% empty %}
-            <tr class="item-row">
-                <td colspan="2">There are no signups.</td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    {% include "eighth/roster-list.html" %}
 </div>
 {% endblock %}
