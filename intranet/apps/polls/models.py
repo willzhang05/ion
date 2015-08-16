@@ -31,24 +31,18 @@ class Question(models.Model):
     poll = models.ForeignKey(Poll)
     question = models.CharField(max_length=500)
     num = models.IntegerField()
-    STD = 'STD'
-    APP = 'APP'
-    SPLIT_APP = 'SAP'
-    FREE_RESP = 'FRE'
-    SHORT_RESP = 'SRE'
-    STD_OTHER = 'STO'
-    TYPE = (
-        (STD, 'Standard'),
-        (APP, 'Approval'),
-        (SPLIT_APP, 'Split approval'),
-        (FREE_RESP, 'Free response'),
-        (SHORT_RESP, 'Short response'),
-        (STD_OTHER, 'Standard other'),
+    TYPES = (
+        ('STD', 'Standard'),
+        ('APP', 'Approval'),
+        ('SAP', 'Split approval'),
+        ('FRE', 'Free response'),
+        ('SRE', 'Short response'),
+        ('STO', 'Standard other'),
     )
-    type = models.CharField(max_length=3, choices=TYPE, default=STD)
+    type = models.CharField(max_length=3, choices=TYPES, default='STD')
 
     def is_writing(self):
-        return (self.TYPE == FREE_RESP or self.TYPE == SHORT_RESP)
+        return (self.type == 'FRE' or self.type == 'SRE')
 
     def trunc_question(self):
         if len(self.question) > 15:
@@ -98,7 +92,7 @@ class Answer_Votes(models.Model):  # record of total selection of a given answer
     users = models.ManyToManyField(User)
     choice = models.ForeignKey(Choice)
     votes = models.DecimalField(max_digits=4, decimal_places=3, default=0)  # sum of answer weights
-    is_writing = models.BooleanField(default=False)  # enables distinction between writing/std answers 
+    is_writing = models.BooleanField(default=False)  # enables distinction between writing/std answers
 
     def __unicode__(self):
         return self.choice
