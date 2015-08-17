@@ -61,9 +61,9 @@ class Choice(models.Model):  # individual answer choices
     info = models.CharField(max_length=100)
     std = models.BooleanField(default=False)
     app = models.BooleanField(default=False)
-    free_resp = models.CharField(max_length=1000)
-    short_resp = models.CharField(max_length=100)
-    std_other = models.CharField(max_length=100)
+    free_resp = models.CharField(max_length=1000, default='')
+    short_resp = models.CharField(max_length=100, default='')
+    std_other = models.CharField(max_length=100, default='')
     is_writing = models.BooleanField(default=False)  # True if question.is_writing() or if last of STD_OTHER
 
     def trunc_info(self):
@@ -74,7 +74,7 @@ class Choice(models.Model):  # individual answer choices
 
     def __unicode__(self):
         # return "{} + O#{}('{}')".format(self.question, self.num, self.trunc_info())
-        return "Option #{}: '{}'".format(self.num, self.trunc.info())
+        return "Option #{}: '{}'".format(self.num, self.trunc_info())
 
 
 class Answer(models.Model):  # individual answer choices selected
