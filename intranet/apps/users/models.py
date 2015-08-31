@@ -1511,7 +1511,8 @@ class Class(object):
                 return value
 
     def __unicode__(self):
-        return "{} ({})".format(self.name, self.teacher.last_name) or self.dn
+        pd_list = ", ".join([str(i) for i in self.periods])
+        return "{}, Period {} ({})".format(self.name, pd_list, self.teacher.last_name) or self.dn
 
 class ClassSections(object):
     """Represents a list of tjhsstClass LDAP objects.
@@ -1556,6 +1557,13 @@ class ClassSections(object):
             classes.append(c)
 
         return classes
+
+    def __unicode__(self):
+        c = self.classes
+        if len(c) > 0:
+            return "{}".format(c[0].name)
+
+        return "{}".format(self.id)
 
 class Address(object):
 
