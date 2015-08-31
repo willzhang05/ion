@@ -259,6 +259,7 @@ INSTALLED_APPS = (
     "intranet.apps.users",
     "intranet.apps.preferences",
     "intranet.apps.files",
+    "intranet.apps.board",
     "intranet.middleware.environment",
     "widget_tweaks",
     "django_extensions",
