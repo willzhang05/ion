@@ -68,6 +68,7 @@ Running Unit Tests
 In order to run tests (``./manage.py test [appname]``), you need to give the ion postgresql user permission to create and wipe the test database.
 
 .. code-block:: bash
+
     $ sudo -u postgres psql
     psql (9.3.9)
     Type "help" for help.
