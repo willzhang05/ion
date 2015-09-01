@@ -2,35 +2,33 @@
 from __future__ import unicode_literals
 
 """
-This file demonstrates writing tests using the unittest module. These will pass
-when you run "manage.py test".
+This file contains tests for the eighth module.
 
 To run the following tests, use "./manage.py test intranet.apps.eighth"
 """
 
 from datetime import date
 from django.db import transaction
-from django.test import TransactionTestCase
+from django.test import TestCase
 from ..users.models import User
-from .models import EighthBlock, EighthActivity, EighthScheduledActivity, EighthSignup
+from .models import EighthBlock, EighthActivity, EighthScheduledActivity, EighthSignup, EighthRoom
 
 
-class EighthTest(TransactionTestCase):
-    reset_sequences = True
+class EighthTest(TestCase):
 
     def test_signups(self):
         """Do some sample signups.
         """
-
-        print EighthActivity.objects.all()
 
         user1 = User.objects.create(username="user1")
         block1 = EighthBlock.objects.create(
             date=date(2015, 01, 01),
             block_letter="A"
         )
+        room1 = EighthRoom.objects.create(name="room1")
 
         act1 = EighthActivity.objects.create(name="Test Activity 1")
+        act1.rooms.add(room1)
         schact1 = EighthScheduledActivity.objects.create(
             activity=act1,
             block=block1
