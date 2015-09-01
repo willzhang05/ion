@@ -41,7 +41,7 @@ class EighthTest(TestCase):
             self.assertEqual((schact.eighthsignup_set
                                     .count()), old_count + 1)
             self.assertEqual((user.eighthsignup_set
-                                  .filter(block=schact.block)
+                                  .filter(scheduled_activity__block=schact.block)
                                   .count()), 1)
         
         verifySignup(user1, schact1)
