@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import logging
 import datetime
+import bleach
 from calendar import monthrange
 from .models import Event
 from .forms import EventForm
@@ -26,9 +27,34 @@ def events_view(request):
     #    # In production, go to not ready page.
     #    return render(request, "events/not_ready.html")
 
-    viewable_events = (Event.objects
-                            .visible_to_user(request.user)
+    is_events_admin = request.user.has_admin_permission('events')
+
+    if request.method == "POST":
+        if "approve" in request.POST and is_events_admin:
+            event_id = request.POST.get('approve')
+            event = get_object_or_404(Event, id=event_id)
+            event.rejected = False
+            event.approved = True
+            event.approved_by = request.user
+            event.save()
+            messages.success(request, "Approved event {}".format(event))
+
+        if "reject" in request.POST and is_events_admin:
+            event_id = request.POST.get('reject')
+            event = get_object_or_404(Event, id=event_id)
+            event.approved = False
+            event.rejected = True
+            event.rejected_by = request.user
+            event.save()
+            messages.success(request, "Rejected event {}".format(event))
+
+    if is_events_admin and "show_all" in request.GET:
+        viewable_events = (Event.objects
                             .prefetch_related("groups"))
+    else:
+        viewable_events = (Event.objects
+                                .visible_to_user(request.user)
+                                .prefetch_related("groups"))
 
     # get date objects for week and month
     today = datetime.date.today()
@@ -36,22 +62,39 @@ def events_view(request):
     this_week = (delta, delta + datetime.timedelta(days=7))
     this_month = (this_week[1], this_week[1] + datetime.timedelta(days=31))
 
+    events_categories = [
+        {
+            "title": "This week",
+            "events": viewable_events.filter(time__gte=this_week[0], time__lt=this_week[1])
+        },
+        {
+            "title": "This month",
+            "events": viewable_events.filter(time__gte=this_month[0], time__lt=this_month[1])
+        },
+        {
+            "title": "Future",
+            "events": viewable_events.filter(time__gte=this_month[1])
+        }
+    ]
+
+    if is_events_admin:
+        unapproved_events = (Event.objects
+                                  .filter(approved=False, rejected=False)
+                                  .prefetch_related("groups"))
+        events_categories = [{
+            "title": "Awaiting Approval",
+            "events": unapproved_events
+        }] + events_categories
+
+    if is_events_admin and "show_all" in request.GET:
+        events_categories.append({
+            "title": "Past",
+            "events": viewable_events.filter(time__lt=this_week[0])
+        })
+
     context = {
-        "events": [
-            {
-                "title": "This week",
-                "events": viewable_events.filter(time__gt=this_week[0], time__lt=this_week[1])
-            },
-            {
-                "title": "This month",
-                "events": viewable_events.filter(time__gt=this_month[0], time__lt=this_month[1])
-            },
-            {
-                "title": "Future",
-                "events": viewable_events.filter(time__gt=this_month[1])
-            }
-        ],
-        "is_events_admin": request.user.has_admin_permission('events'),
+        "events": events_categories,
+        "is_events_admin": is_events_admin,
         "show_attend": True
     }
     return render(request, "events/home.html", context)
@@ -126,27 +169,48 @@ def event_roster_view(request, id):
 @login_required
 def add_event_view(request):
     """
-        Add event page. Currently, there is no credential checking; any user may create
-        an event. This may change.
+        Add event page. Currently, there is an approval process for events.
+        If a user is an events administrator, they can create events directly.
+        Otherwise, their event is added in the system but must be approved.
 
     """
     #if settings.PRODUCTION and not request.user.has_admin_permission('events'):
     #    return render(request, "events/not_ready.html")
 
+    is_events_admin = request.user.has_admin_permission('events')
+
     if request.method == "POST":
-        form = EventForm(request.POST)
+        form = EventForm(data=request.POST, all_groups=request.user.has_admin_permission('groups'))
         logger.debug(form)
         if form.is_valid():
             obj = form.save()
             obj.user = request.user
+            # SAFE HTML
+            obj.description = bleach.linkify(obj.description)
+
+            if request.user.has_admin_permission('events'):
+                # auto-approve if admin
+                obj.approved = True
+                obj.approved_by = request.user
+                messages.success(request, "Because you are an administrator, this event was auto-approved.")
+            else:
+                messages.success(request, "Your event needs to be approved by an administrator. If approved, it should "
+                                          "appear on Intranet within 24 hours.")
+            obj.created_hook(request)
+
             obj.save()
-            messages.success(request, "Successfully added event.")
             return redirect("events")
         else:
             messages.error(request, "Error adding event")
     else:
-        form = EventForm()
-    return render(request, "events/add_modify.html", {"form": form, "action": "add"})
+        form = EventForm(all_groups=request.user.has_admin_permission('groups'))
+    context = {
+        "form": form,
+        "action": "add",
+        "action_title": "Add" if is_events_admin else "Submit",
+        "is_events_admin": is_events_admin
+    }
+    return render(request, "events/add_modify.html", context)
 
 @login_required
 def modify_event_view(request, id=None):
@@ -158,24 +222,34 @@ def modify_event_view(request, id=None):
 
     """
     event = get_object_or_404(Event, id=id)
+    is_events_admin = request.user.has_admin_permission('events')
 
-    if not request.user.has_admin_permission('events') and event.user != request.user:
+    if not is_events_admin:
         raise exceptions.PermissionDenied
 
     if request.method == "POST":
-        form = EventForm(request.POST, instance=event)
+        form = EventForm(data=request.POST, instance=event, all_groups=request.user.has_admin_permission('groups'))
         logger.debug(form)
         if form.is_valid():
             obj = form.save()
             obj.user = request.user
+            # SAFE HTML
+            obj.description = bleach.linkify(obj.description)
             obj.save()
             messages.success(request, "Successfully modified event.")
             #return redirect("events")
         else:
             messages.error(request, "Error adding event.")
     else:
-        form = EventForm(instance=event)
-    return render(request, "events/add_modify.html", {"form": form, "action": "modify", "id": id})
+        form = EventForm(instance=event, all_groups=request.user.has_admin_permission('groups'))
+    context = {
+        "form": form,
+        "action": "modify",
+        "action_title": "Modify",
+        "id": id,
+        "is_events_admin": is_events_admin
+    }
+    return render(request, "events/add_modify.html", context)
 
 
 @login_required
@@ -188,7 +262,7 @@ def delete_event_view(request, id):
 
     """
     event = get_object_or_404(Event, id=id)
-    if not request.user.has_admin_permission('events') and event.user != request.user:
+    if not request.user.has_admin_permission('events'):
         raise exceptions.PermissionDenied
 
     if request.method == "POST":

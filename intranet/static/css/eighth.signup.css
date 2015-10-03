@@ -291,6 +291,14 @@ h3 {
     font-size: 20px;
 }
 
+h3 > a,
+h3 > a:link,
+h3 > a:visited,
+h3 > a:hover,
+h3 > a:active {
+    color: rgb(72,72,72);
+}
+
 #activity-picker h3.empty-state {
     color: rgb(170, 170, 170);
     text-align: center;
@@ -354,6 +362,14 @@ h5.stuck {
 
 h5.hidden {
     display: none;
+}
+
+#activity-list h5 .clear-button {
+    float: right;
+    margin-top: 4px;
+    margin-right: 0;
+    height: 16px;
+    padding-bottom: 3px;
 }
 
 #activity-list li {

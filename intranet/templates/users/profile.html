@@ -9,6 +9,7 @@
 
 {% block css %}
     {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'vendor/sortable-0.6.0/css/sortable-theme-minimal.css' %}" />
     <link rel="stylesheet" type="text/css" href="{% static 'css/eighth.common.css' %}" />
     <link rel="stylesheet" type="text/css" href="{% static 'css/profile.css' %}" />
     {% if profile_user.is_eighth_sponsor and profile_user.is_student %}
@@ -33,6 +34,14 @@
         <script type="text/javascript">
             $(document).ready(function() {
                 $('.preferred-user-picture img, .preferred-user-picture span').click(function() {
+                    $(".user-pictures img").each(function() {
+                        var src = $(this).attr("src");
+                        var datasrc = $(this).attr("data-src");
+                        console.debug($(this).attr("alt"), src);
+                        if(!src) {
+                            $(this).attr("src", datasrc);
+                        }
+                    })
                     $('.user-pictures').slideToggle();
                 });
                 $('.user-pictures').click(function() {
@@ -41,6 +50,7 @@
             });
         </script>
     {% endif %}
+    <script type="text/javascript" src="{% static 'vendor/sortable-0.6.0/js/sortable.min.js' %}"></script>
 {% endblock %}
 
 {% block main %}
@@ -50,19 +60,19 @@
             <table>
                 <tr>
                     <td>
-                        <img class="freshman" src="{% url 'profile_picture' profile_user.id 'freshman' %}" alt="Freshman Picture" title="Freshman Picture" />
+                        <img class="freshman" data-src="{% url 'profile_picture' profile_user.id 'freshman' %}" alt="Freshman Picture" title="Freshman Picture" />
                         <br />Freshman
                     </td>
                     <td>
-                        <img class="sophomore" src="{% url 'profile_picture' profile_user.id 'sophomore' %}" alt="Sophomore Picture" title="Sophomore Picture" />
+                        <img class="sophomore" data-src="{% url 'profile_picture' profile_user.id 'sophomore' %}" alt="Sophomore Picture" title="Sophomore Picture" />
                         <br />Sophomore
                     </td>
                     <td>
-                        <img class="junior" src="{% url 'profile_picture' profile_user.id 'junior' %}" alt="Junior Picture" title="Junior Picture" />
+                        <img class="junior" data-src="{% url 'profile_picture' profile_user.id 'junior' %}" alt="Junior Picture" title="Junior Picture" />
                         <br />Junior
                     </td>
                     <td>
-                        <img class="senior" src="{% url 'profile_picture' profile_user.id 'senior' %}" alt="Senior Picture" title="Senior Picture" />
+                        <img class="senior" data-src="{% url 'profile_picture' profile_user.id 'senior' %}" alt="Senior Picture" title="Senior Picture" />
                         <br />Senior
                     </td>
                 </tr>
@@ -81,8 +91,12 @@
 
 
             {% if request.user.is_eighth_admin %}
-                <br />
-                <a href="{% url 'eighth_profile' profile_user.id %}" class="button" style="margin-left: 20px">View Eighth Profile</a>
+                <center>
+                    <br /><br /><br />
+                    <a href="{% url 'eighth_profile' profile_user.id %}" class="button" style="margin-left: 0px">View Eighth Profile</a>
+                    <br />
+                    <a href="/profile/{{ profile_user.id }}?clear_cache=1&full=1" class="button small-button" title="Clear cached information for this user.">Clear Cache</a> &nbsp;
+                </center>
             {% endif %}
         </div>
 
@@ -202,7 +216,7 @@
                         <tr>
                             <th>Cell Phone</th>
                             <td>
-                                <a href="tel:{{ profile_user.home_phone }}">
+                                <a href="tel:{{ profile_user.mobile_phone }}">
                                     {{ profile_user.mobile_phone|dashes }}
                                 </a>
                             </td>
@@ -236,10 +250,10 @@
                     </table>
                 </div>
 
-                <section class="user-info-schedule">
+                <section class="user-info-schedule class-info">
                     {% if profile_user.classes %}
                         <h3>Schedule</h3>
-                        <table>
+                        <table class="fancy-table zebra" data-sortable>
                             <thead>
                                 <th>Period</th>
                                 <th>Name</th>
@@ -252,11 +266,23 @@
                             {% for class in profile_user.classes %}
                                 <tr>
                                     <td>{{ class.periods|join:", " }} </td>
-                                    <td>{{ class.name }}</td>
+                                    <td>
+                                        <a href="{% url 'class_section' class.section_id %}">
+                                            {{ class.name }}
+                                        </a>
+                                    </td>
                                     {% if profile_user.is_student %}
-                                        <td>{{ class.teacher.last_name }}</td>
+                                        <td>
+                                            <a href="{% url 'user_profile' class.teacher.id %}">
+                                                {{ class.teacher.last_name }}
+                                            </a>
+                                        </td>
                                     {% endif %}
-                                    <td>{{ class.room_number }}</td>
+                                    <td>
+                                        <a href="{% url 'class_room' class.room_number %}">
+                                            {{ class.room_number }}
+                                        </a>
+                                    </td>
                                     <td>
                                         {% if class.quarters|length == 4 %}
                                             Full Year

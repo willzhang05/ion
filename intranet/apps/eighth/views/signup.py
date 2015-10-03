@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 def eighth_signup_view(request, block_id=None):
 
     if block_id is None and "block" in request.GET:
+        block_ids = request.GET.getlist("block")
+        if len(block_ids) > 1:
+            return redirect("/eighth/signup/multi?{}".format(request.META['QUERY_STRING']))
+
         block_id = request.GET.get("block")
         args = ""
         if "user" in request.GET:
@@ -171,6 +175,151 @@ def eighth_signup_view(request, block_id=None):
 
         return render(request, "eighth/signup.html", context)
 
+
+def eighth_multi_signup_view(request):
+    if request.method == "POST":
+        if "unsignup" in request.POST and "aid" not in request.POST:
+            uid = request.POST.get("uid")
+            bids_comma = request.POST.get("bid")
+            force = request.POST.get("force")
+            if force == "true":
+                force = True
+            else:
+                force = False
+
+            bids = bids_comma.split(",")
+
+            try:
+                user = User.get_user(id=uid)
+            except User.DoesNotExist:
+                return http.HttpResponseNotFound("Given user does not exist.")
+
+            display_messages = []
+            status = 200
+            for bid in bids:
+                try:
+                    eighth_signup = (EighthSignup.objects
+                                                 .get(scheduled_activity__block__id=bid,
+                                                      user__id=uid))
+                    success_message = eighth_signup.remove_signup(request.user, force)
+                except EighthSignup.DoesNotExist:
+                    status = 403
+                    display_messages.append("{}: Signup did not exist.".format(bid))
+
+                except SignupException as e:
+                    show_admin_messages = (request.user.is_eighth_admin and
+                                           not request.user.is_student)
+                    resp = e.as_response(admin=show_admin_messages)
+                    status = 403
+                    display_messages.append("{}: {}".format(bid, resp.content))
+
+                else:
+                    display_messages.append("{}: {}".format(bid, success_message))
+
+            return http.HttpResponse("\n".join(display_messages), status=status)
+
+        for field in ("uid", "aid"):
+            if not (field in request.POST and request.POST[field].isdigit()):
+                return http.HttpResponseBadRequest(field + " must be an "
+                                                   "integer")
+
+        uid = request.POST["uid"]
+        bids_comma = request.POST["bid"]
+        aid = request.POST["aid"]
+
+        bids = bids_comma.split(",")
+
+        try:
+            user = User.get_user(id=uid)
+        except User.DoesNotExist:
+            return http.HttpResponseNotFound("Given user does not exist.")
+
+        display_messages = []
+        status = 200
+        for bid in bids:
+            try:
+                scheduled_activity = (EighthScheduledActivity.objects
+                                                             .exclude(activity__deleted=True)
+                                                             .exclude(cancelled=True)
+                                                             .get(block=bid,
+                                                                  activity=aid))
+
+            except EighthScheduledActivity.DoesNotExist:
+                display_messages.append("{}: Activity was not scheduled "
+                                                 "for block".format(bid))
+            else:
+                try:
+                    success_message = scheduled_activity.add_user(user, request)
+                except SignupException as e:
+                    show_admin_messages = (request.user.is_eighth_admin and
+                                           not request.user.is_student)
+                    resp = e.as_response(admin=show_admin_messages)
+                    status = 403
+                    display_messages.append("{}: {}".format(bid, resp.content))
+                else:
+                    display_messages.append("{}: {}".format(bid, success_message))
+
+        return http.HttpResponse("<br />".join(display_messages), status=status)
+    else:
+        if "user" in request.GET and request.user.is_eighth_admin:
+            try:
+                user = User.get_user(id=request.GET["user"])
+            except (User.DoesNotExist, ValueError):
+                raise http.Http404
+        else:
+            if request.user.is_student:
+                user = request.user
+            else:
+                return redirect("eighth_admin_dashboard")
+
+        block_ids = request.GET.getlist("block")
+        blocks = []
+
+        for block_id in block_ids:
+            try:
+                block = (EighthBlock.objects
+                                    .prefetch_related("eighthscheduledactivity_set")
+                                    .get(id=block_id))
+                blocks.append(block)
+            except EighthBlock.DoesNotExist:
+                # The provided block_id is invalid
+                raise http.Http404
+
+        serializer_context = {
+            "request": request,
+            "user": user
+        }
+        blocks_info = []
+        activities = {}
+        for block in blocks:
+            block_info = EighthBlockDetailSerializer(block, context=serializer_context).data
+            blocks_info.append(block_info)
+            acts = block_info["activities"]
+            for a in acts:
+                info = {
+                    "id": block.id,
+                    "date": block.date,
+                    "block_letter": block.block_letter
+                }
+                if a in activities:
+                    activities[a]["blocks"].append(info)
+                else:
+                    activities[a] = acts[a]
+                    activities[a]["blocks"] = [info]
+                    activities[a]["total_num_blocks"] = len(blocks)
+
+        logger.debug(activities)
+        context = {
+            "user": user,
+            "profile_user": user,
+            "real_user": request.user,
+            "block_info": block_info,
+            "activities_list": safe_json(activities),
+            "blocks": blocks,
+            "show_eighth_profile_link": True
+        }
+
+        return render(request, "eighth/multi_signup.html", context)
 
 @login_required
 def toggle_favorite_view(request):

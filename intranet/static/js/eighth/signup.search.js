@@ -2,10 +2,16 @@ $(document).ready(function() {
 
     searchDebug = false;
 
-    eighthSearch = function() {
+    clearSearch = function() {
+        $("#activity-picker .search-wrapper input").val("").trigger("keyup");
+    }
+
+    eighthSearch = function(q) {
         var _st = +new Date();
+
         var searchStr = $(this).val().toLowerCase();
         searchStr = $.trim(searchStr);
+
         var searchSplit = [];
         if(searchStr.indexOf('"') != -1) {
             var quoteSplit = searchStr.split('"');
@@ -31,6 +37,12 @@ $(document).ready(function() {
                     searchSplit.push($.trim(spl));
                 }
             }
+        }
+
+        if(searchStr.length == 0) {
+            $(".sticky-header.all-header").html("All");
+        } else {
+            $(".sticky-header.all-header").html("Search Results<a class='button small-button clear-button' onclick='clearSearch()'>Clear</span>");
         }
 
         // console.log("query:", searchStr);
@@ -97,12 +109,20 @@ $(document).ready(function() {
                     if(cmd[1].substring(0,1) == "r" && activity.restricted == fl) {
                         show = true;
                     }
+                    // authorized
+                    if(cmd[1].substring(0,2) == "au" && activity.restricted == fl && activity.restricted_for_user == !fl) {
+                        show = true;
+                    }
                     // cancelled
                     if(cmd[1].substring(0,1) == "c" && activity.cancelled == fl) {
                         show = true;
                     }
                     // bothblocks
                     if(cmd[1].substring(0,1) == "b" && activity.both_blocks == fl) {
+                        show = true;
+                    }
+                    // oneaday
+                    if(cmd[1].substring(0,2) == "on" && activity.one_a_day == fl) {
                         show = true;
                     }
                     // favorite
@@ -114,7 +134,7 @@ $(document).ready(function() {
                         show = true;
                     }
                     // admin
-                    if(cmd[1].substring(0,1) == "a" && activity.administrative == fl) {
+                    if(cmd[1].substring(0,2) == "ad" && activity.administrative == fl) {
                         show = true;
                         show_adminact = true;
                     }
@@ -131,7 +151,7 @@ $(document).ready(function() {
                         show = true;
                     }
                     // open
-                    if(cmd[1].substring(0,1) == "o" && (activity.roster.count < activity.roster.capacity) == fl) {
+                    if(cmd[1].substring(0,2) == "op" && (activity.roster.count < activity.roster.capacity) == fl) {
                         show = true;
                     }
                     // selected

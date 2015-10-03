@@ -25,7 +25,15 @@
 $(function() {
     $("form > select").on("change", function() {
         this.form.submit();
-    })
+    });
+
+    $("#show_all_blocks").click(function() {
+        if($(this).prop('checked')) {
+            location.href = '?show_all_blocks=1';
+        } else {
+            location.href = '?';
+        }
+    });
 });
     </script>
     {% else %}
@@ -49,9 +57,9 @@ $(function() {
             <h2>
                 {% if scheduled_activity %}
                     {% if scheduled_activity.block.locked %}
-                        Take Attendance: {{ scheduled_activity }}
+                        Take Attendance<span class="extra-title">: {{ scheduled_activity }}</span>
                     {% else %}
-                        View Roster: {{ scheduled_activity }}
+                        View Roster<span class="extra-title">: {{ scheduled_activity }}</span>
                     {% endif %}
                 {% else %}
                     Attendance/Roster
@@ -97,8 +105,8 @@ $(function() {
             <br />
         {% endif %}
 
-        {% if request.GET.na %}
-            <strong>You are not sponsoring any activities for the block you selected.</strong>
+        {% if no_edit_perm %}
+            <strong>You are not a sponsor for this activity, so you can only view the roster.</strong>
             <br />
         {% endif %}
 
@@ -114,12 +122,52 @@ $(function() {
             <form action="" method="post">
                 {% csrf_token %}
                 {{ wizard.management_form }}
+
+                {% if sponsor_block %}
+                    <br />
+                    {% if sponsored_activities %}
+                        <b>You are sponsoring the following activities on {{ sponsor_block }}:</b><br />
+                        <table class="fancy-table sponsoring-wizard-table">
+                            <tbody>
+                        {% for schact in sponsored_activities %}
+                            <tr>
+                                <th>
+                                    {{ schact.full_title }}
+                                </th>
+                                <td>
+                                    <a href='{% url "eighth_take_attendance" schact.id %}' class='button'>
+                                        {% if schact.block.attendance_locked and not request.user.is_eighth_admin %}
+                                            View Attendance
+                                        {% elif schact.block.locked %}
+                                            Take Attendance
+                                        {% else %}
+                                            View Roster
+                                        {% endif %}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <b>You are not sponsoring any activities on {{ sponsor_block }}.
+                        {% if not request.user.is_eighth_admin %}
+                            You can only view activity rosters.
+                        {% endif %}</b><br />
+                    {% endif %}
+                    <br />
+                    <br />
+                {% endif %}
+
                 {{ wizard.form }}
                 {% if wizard.steps.prev %}
                     <button name="wizard_goto_step" type="submit" value="{{ wizard.steps.prev }}">Back</button>
                 {% endif %}
                 {% if wizard.steps.next %}
-                    <input type="submit" value="Next"/>
+                    <label>
+                        <input type="checkbox" name="show_all_blocks" id="show_all_blocks" {% if "show_all_blocks" in request.GET %} checked{% endif %}/> Show Past Blocks
+                    </label><br />
+                    <input type="submit" value="Next" />
                 {% else %}
                     <input type="submit" value="{% if scheduled_activity.block.locked %}Take Attendance{% else %}View Roster{% endif %}"/>
                 {% endif %}
@@ -130,7 +178,7 @@ $(function() {
                 {% if not request.user.is_eighth_admin %}
                     <tr>
                         <th>Activity:</th>
-                        <td>{{ scheduled_activity.activity.name_with_flags }} ({{ scheduled_activity.activity.id }})</td>
+                        <td>{{ scheduled_activity.activity.name_with_flags }} (AID: {{ scheduled_activity.activity.aid }})</td>
                     </tr>
                     <tr>
                         <th>Date:</th>
@@ -139,11 +187,11 @@ $(function() {
                 {% endif %}
                     <tr>
                         <th>Rooms:</th>
-                        <td>{{ scheduled_activity.get_true_rooms|join:", " }}</td>
+                        <td>{{ scheduled_activity.get_true_rooms|join:", "|default:"None" }}</td>
                     </tr>
                     <tr>
                         <th>Sponsors:</th>
-                        <td>{{ scheduled_activity.get_true_sponsors|join:", " }}</td>
+                        <td>{{ scheduled_activity.get_true_sponsors|join:", "|default:"None" }}</td>
                     </tr>
                     <tr>
                         <th>Signups:</th>
@@ -165,7 +213,7 @@ $(function() {
 
                 {% if passes and scheduled_activity.block.locked %}
                     <div class="passes-notice">
-                        <i class="fa fa-exclamation-triangle"></i> Accept/Reject Student Passes
+                        <i class="fa fa-exclamation-triangle"></i> Unacknowledged Student Passes
                     </div>
                 {% endif %}
 
@@ -179,7 +227,11 @@ $(function() {
                                 <th>Student ID</th>
                                 <th>Grade</th>
                                 <th>Time</th>
-                                <th>Accept/Reject</th>
+                                {% if scheduled_activity.block.attendance_locked and not request.user.is_eighth_admin %}
+
+                                {% else %}
+                                    <th>Accept/Reject</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -203,6 +255,9 @@ $(function() {
                                 <td>
                                     {{ pass.last_modified_time|fuzzy_date }}
                                 </td>
+                                {% if scheduled_activity.block.attendance_locked and not request.user.is_eighth_admin %}
+
+                                {% else %}
                                 <td class="form">
                                     <form name="pass-form-{{ pass.id }}" action="{% url 'eighth_accept_pass' pass.id %}" method="post">
                                         {% csrf_token %}
@@ -213,6 +268,7 @@ $(function() {
                                         <a href="#" onclick="return false" class="pass-form-submit-link button" data-form="pass-form-{{ pass.id }}" data-status="reject"><i class="fa fa-times"></i></a>
                                     </form>
                                 </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                             <tr class="pass-button-row">
@@ -220,18 +276,24 @@ $(function() {
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                {% if scheduled_activity.block.attendance_locked and not request.user.is_eighth_admin %}
+
+                                {% else %}
                                 <td>
                                     <form action="{% url 'eighth_accept_all_passes' scheduled_activity.id %}" method="post" onsubmit="return confirm('Accept passes for and mark {{ passes|length }} student{{ passes|pluralize }} present?')">
                                         {% csrf_token %}
                                         <input type="submit" class="button accept-all-passes" value="Accept All">
                                     </form>
                                 </td>
+                                {% endif %}
                             </tr>
                         </tbody>
                     </table>
                 {% else %}
                     <h3>Passes</h3>
-                    <i class="fa fa-check" style="color:green"></i> There are no passes to accept.
+                    <span class="no-passes">
+                        <i class="fa fa-check"></i> There are no passes to accept.
+                    </span>
                 {% endif %}
                 </div>
 
@@ -286,6 +348,17 @@ $(function() {
                                     <br />
                                     <b>You may not take attendance for this activity - signups are not yet locked.</b>
                                     <br />
+                                {% elif scheduled_activity.block.attendance_locked %}
+                                    <br />
+                                    <br />
+                                    {% if request.user.is_eighth_admin %}
+                                        <b>The attendance period is locked.</b>
+                                        <br />
+                                        <input type="submit" class="save-button" value="{% if scheduled_activity.attendance_taken %}Update{% else %}Take{% endif %} Attendance Anyway" />
+                                    {% else %}
+                                        <b>You may not take attendance for this activity - attendance is locked.</b>
+                                        <br />
+                                    {% endif %}
                                 {% else %}
                                     <input type="submit" class="save-button" value="{% if scheduled_activity.attendance_taken %}Update{% else %}Take{% endif %} Attendance" />
                                 {% endif %}

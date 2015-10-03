@@ -11,8 +11,11 @@ from ..schedule.views import schedule_context
 from .forms import AuthenticateForm
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
+from django.core import exceptions
 from django.templatetags.static import static
 from django.views.generic.base import View
+from django.utils.decorators import method_decorator
+from django.views.decorators.debug import sensitive_variables, sensitive_post_parameters
 
 logger = logging.getLogger(__name__)
 auth_logger = logging.getLogger("intranet_auth")
@@ -65,6 +68,7 @@ def get_bg_pattern():
 
     return static(file_path + random.choice(files))
 
+@sensitive_post_parameters("password")
 def index_view(request, auth_form=None, force_login=False, added_context=None):
     """Process and show the main login page or dashboard if logged in."""
     if request.user.is_authenticated() and not force_login:
@@ -89,6 +93,7 @@ class login_view(View):
 
     """Log in and redirect a user."""
 
+    @method_decorator(sensitive_post_parameters("password"))
     def post(self, request):
         """Validate and process the login POST request."""
 
@@ -117,13 +122,22 @@ class login_view(View):
             log_auth(request, "success{}".format(" - first login" if not request.user.first_login else ""))
 
             default_next_page = "/"
+
+            dn = request.user.dn
+            if dn is None or not dn:
+                do_logout(request)
+                return index_view(request, added_context={
+                    "auth_message": "Your account is disabled."
+                })
+
+
             if request.user.startpage == "eighth":
                 """Default to eighth admin view (for eighthoffice)."""
                 default_next_page = "eighth_admin_dashboard"
 
             if request.user.is_eighthoffice:
                 """Eighthoffice's session should (almost) never expire."""
-                request.user.set_expiry(datetime.now() + timedelta(days=30))
+                request.session.set_expiry(datetime.now() + timedelta(days=30))
 
             if not request.user.first_login:
                 logger.info("First login")
@@ -143,6 +157,7 @@ class login_view(View):
             logger.info("Login failed as {}".format(request.POST.get("username", "unknown")))
             return index_view(request, auth_form=form)
 
+    @method_decorator(sensitive_post_parameters("password"))
     def get(self, request):
         """Redirect to the login page."""
         return index_view(request, force_login=True)
@@ -151,14 +166,18 @@ def about_view(request):
     """Show an about page with credits."""
     return render(request, "auth/about.html")
 
-
-def logout_view(request):
+def do_logout(request):
     """Clear the Kerberos cache and logout."""
     try:
         kerberos_cache = request.session["KRB5CCNAME"]
         os.system("/usr/bin/kdestroy -c " + kerberos_cache)
     except KeyError:
         pass
+
     logger.info("Destroying kerberos cache and logging out")
     logout(request)
+
+def logout_view(request):
+    """Clear the Kerberos cache and logout."""
+    do_logout(request)
     return redirect("/")

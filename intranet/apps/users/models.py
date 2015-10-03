@@ -10,11 +10,13 @@ import re
 from django.db import models
 from django.conf import settings
 from django.core.cache import cache
+from django.core import exceptions
 from django.contrib.auth.models import (
-    AbstractBaseUser, PermissionsMixin, UserManager, Group)
+    AbstractBaseUser, PermissionsMixin, UserManager)
 from django.core.signing import Signer
 from intranet.db.ldap_db import LDAPConnection, LDAPFilter
 from intranet.middleware import threadlocals
+from ..groups.models import Group
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,30 @@ class UserManager(UserManager):
             return User.get_user(dn=results[0][0])
 
         return None
+
+    def users_with_birthday(self, month, day):
+        """Return a list of user objects who have a birthday on a given date."""
+        c = LDAPConnection()
+
+        month = int(month)
+        if month < 10:
+            month = "0"+str(month)
+
+        day = int(day)
+        if day < 10:
+            day = "0"+str(day)
+
+        search_query = "birthday=*{}{}".format(month, day)
+        results = c.search(settings.USER_DN,
+                        search_query,
+                        ["dn"])
+
+        users = []
+        for res in results:
+            users.append(User.get_user(dn=res[0]))
+
+
+        return users
 
     # Simple way to filter out teachers and students without hitting LDAP.
     # This shouldn't be a problem unless the username scheme changes and
@@ -343,13 +369,23 @@ class User(AbstractBaseUser, PermissionsMixin):
             return self.full_name
         return display_name
 
-    @property
+    property
     def last_first(self):
+        """Return a name in the format of:
+            Lastname, Firstname [(Nickname)]
+        """
+        return ("{}, {} ".format(self.last_name, self.first_name) +
+               ("({})".format(self.nickname) if self.nickname else ""))
+
+
+    @property
+    def last_first_id(self):
         """Return a name in the format of:
             Lastname, Firstname [(Nickname)] (Student ID/ID/Username)
         """
         return ("{}, {} ".format(self.last_name, self.first_name) +
-                "({})".format(self.student_id if self.student_id else self.username))
+               ("({}) ".format(self.nickname) if self.nickname else "") +
+               ("({})".format(self.student_id if self.student_id else self.username)))
 
     @property
     def short_name(self):
@@ -602,6 +638,25 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             return None
 
+    @property
+    def age(self, date=None):
+        """Returns a user's age, based on their birthday.
+           Optional date argument to find their age on a given day.
+
+        Returns:
+            integer
+
+        """
+        if not date:
+            date = datetime.now()
+
+        b = self.birthday
+        if b:
+            return int((date - b).days / 365)
+
+        return None
+    
+
     def photo_binary(self, photo_year):
         """Returns the binary data for a user's picture.
 
@@ -725,7 +780,10 @@ class User(AbstractBaseUser, PermissionsMixin):
             Dictionary with keys "parent" and "self", each mapping to a
             list of permissions.
         """
-        key = ":".join([self.dn, "user_info_permissions"])
+        if self.dn is None:
+            return False
+
+        key = "{}:{}".format(self.dn, "user_info_permissions")
 
         cached = cache.get(key)
 
@@ -1137,7 +1195,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             if not self.is_active:
                 return None
 
-            raise Exception("Could not determine DN of User with ID {}".format(self.id))
+            raise exceptions.ObjectDoesNotExist("Could not determine DN of User with ID {} (requesting {})".format(self.id, name))
 
         attr = User.ldap_user_attributes[name]
         should_cache = attr["cache"]
@@ -1394,6 +1452,27 @@ class Class(object):
         """
         return min(map(float, self.periods)) + (float(sum(self.quarters)) / 11)
 
+    @property
+    def sections(self):
+        """Returns a list of other Class objects which are of
+           the same class type.
+
+           Returns:
+               A list of class objects.
+        """
+        class_sections = ClassSections(id=self.class_id)
+
+        schedule = []
+        classes = class_sections.classes
+        # Sort in order
+        for class_object in classes:
+            sortvalue = class_object.sortvalue
+            schedule.append((sortvalue, class_object))
+
+        ordered_schedule = sorted(schedule, key=lambda e: e[0])
+        return list(zip(*ordered_schedule)[1]) # The class objects
+    
+
     def __getattr__(self, name):
         """Return simple attributes of Class
 
@@ -1481,6 +1560,49 @@ class Class(object):
     def __unicode__(self):
         return "{} ({})".format(self.name, self.teacher.last_name) or self.dn
 
+class ClassSections(object):
+    """Represents a list of tjhsstClass LDAP objects.
+
+    Note that this is not a Django model, but rather an interface
+    to LDAP classes.
+
+    Attributes:
+        class_id
+            The class ID of the class(es) (tjhsstClassId)
+
+    """
+
+    def __init__(self, dn=None, id=None):
+        """Initialize the Class object.
+
+        Either dn or id is required.
+
+        Args:
+            id
+                The tjhsstClassId of the class.
+
+        """
+        self.dn = dn or "ou=schedule,dc=tjhsst,dc=edu"
+        self.id = id
+
+    @property
+    def classes(self):
+        """Returns a list of classes sections for the given class.
+
+        Returns:
+            List of Class objects
+
+        """
+        c = LDAPConnection()
+        query = c.search(self.dn, "(&(objectClass=tjhsstClass)(tjhsstClassId={}))".format(self.id), ["tjhsstSectionId"])
+
+        classes = []
+        for row in query:
+            dn = row[0]
+            c = Class(dn=dn)
+            classes.append(c)
+
+        return classes
 
 class Address(object):
 
@@ -1556,6 +1678,15 @@ class Grade(object):
         """Return the grade's name (e.g. senior)"""
         return self._name
 
+    @property
+    def text(self):
+        """Return the grade's number as a string (e.g. Grade 12, Graduate)"""
+        if 9 <= self._number <= 12:
+            return "Grade {}".format(self._number)
+        else:
+            return self._name
+    
+
     def __int__(self):
         """Return the grade as a number (9-12)."""
         return self._number
@@ -1563,3 +1694,6 @@ class Grade(object):
     def __unicode__(self):
         """Return name of the grade."""
         return self._name
+
+    def __str__(self):
+        return self.__unicode__()

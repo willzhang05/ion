@@ -43,6 +43,7 @@ input[type=text], input[type=password] {
 input[type=submit] {
     width: 200px;
     margin-top: 6px;
+    height: 36px;
 }
 
 h1 {
@@ -209,4 +210,9 @@ a.schedule-right {
     top: -19px;
     left: 50%;
     z-index: 1;
+}
+
+.schedule h2 {
+    max-width: 300px;
+    white-space: normal;
 }

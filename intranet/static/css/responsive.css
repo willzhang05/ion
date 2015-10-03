@@ -11,6 +11,10 @@
         padding-right: 316px; /* 116px less */
     }
 
+    .main div.announcements.no-widgets {
+        padding-right: 0;
+    }
+
     .main .widgets,
     .main .announcements {
         transition: all 0.4s ease;
@@ -49,6 +53,10 @@
 
     .main div.widgets {
         width: 100%;
+    }
+
+    .announcement {
+        clear: both;
     }
 }
 
@@ -103,6 +111,11 @@
 
     .eighth-signup .middle .desktop-info {
         display: none;
+    }
+
+
+    .eighth-signup #activity-list h5 .clear-button {
+        margin-right: 20px;
     }
 }
 
@@ -185,6 +198,11 @@
     .block-title .block-comments > span {
         display: none;
     }
+
+
+    .eighth-signup #activity-list h5 .clear-button {
+        margin-right: 0;
+    }
 }
 
 @media (max-width: 500px) {
@@ -250,13 +268,13 @@
 
 @media (max-width: 450px) {
     #activity-picker .backbtn > i {
-        left: 2px;
+        left: 7px;
         font-size: 25px;
     }
 }
 @media (max-width: 359px) {
     #activity-picker .backbtn > i {
-        left: 0px;
+        left: 5px;
         font-size: 20px;
     }
 }

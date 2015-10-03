@@ -2,10 +2,6 @@
     font-size: 13px;
 }
 
-.widget-content.schedule {
-    max-width: 350px;
-}
-
 .widget-content.schedule .eighth-block,
 .widget-content.schedule .block-header,
 .widget-content.schedule .block-signup,
@@ -15,10 +11,6 @@
 }
 
 .widget-content.schedule {
-    padding: 5px 0;
-}
-
-.schedule-widget h2 {
     width: 100%;
 }
 
@@ -42,15 +34,31 @@
     }
 }
 
+.schedule-widget .widget-title h2 {
+    width: 100%;
+}
+
 .schedule-widget .schedule h2 {
     margin: 0;
-    margin-bottom: -15px;
+    margin-bottom: -10px;
+    font-size: 14px;
+    padding: 5px 15px;
+    white-space: normal;
+    display: inline-block;
+    vertical-align: top;
 }
 
 .schedule-widget .bellschedule-table {
-    width: auto;
     margin-left: auto;
-    margin-right: auto;
+    display: inline-block;
+    width: auto;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    float: right;
+}
+
+.schedule-widget .bellschedule-table .day-name-cell {
+    text-align: center;
 }
 
 .chevron i {
@@ -70,26 +78,25 @@
 }
 
 .chevron.schedule-right {
-    float: right;
+/*    float: right;*/
 }
 
 .chevron.schedule-left {
     float: left;
 }
 
-.schedule[data-daytype-name^="Blue"] .block-daytype-name {
-    color: blue;
-}
-
-.schedule[data-daytype-name^="Red"] .block-daytype-name {
-    color: red;
-}
-
 .schedule-admin {
     padding: 0 10px;
     line-height: 22px;
+    width: calc(100% - 20px);
+    float: left;
 }
 
 .schedule-admin a.button {
     margin-top: 1px;
+}
+
+.bellschedule-blank-message {
+    margin: 5px;
+    text-align: center;
 }

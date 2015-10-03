@@ -15,6 +15,7 @@ from django.http import StreamingHttpResponse
 from django.core.servers.basehttp import FileWrapper
 from django.core.urlresolvers import reverse
 from django.shortcuts import render, redirect
+from django.views.decorators.debug import sensitive_variables, sensitive_post_parameters
 from .models import Host
 from .forms import UploadFileForm
 from intranet import settings
@@ -27,9 +28,6 @@ def create_session(hostname, username, password):
 @login_required
 def files_view(request):
     """The main filecenter view."""
-    if not request.user.has_admin_permission('files'):
-        return render(request, "files/devel_message.html")
-
 
     hosts = Host.objects.visible_to_user(request.user)
 
@@ -39,6 +37,8 @@ def files_view(request):
     return render(request, "files/home.html", context)
 
 @login_required
+@sensitive_variables('message', 'key', 'iv', 'ciphertext')
+@sensitive_post_parameters('password')
 def files_auth(request):
     """Display authentication for filecenter."""
     if "password" in request.POST:
@@ -157,11 +157,28 @@ def files_type(request, fstype=None):
             host_dir = host_dir.format(authinfo["username"])
         if "{win}" in host_dir:
             host_dir = windows_dir_format(host_dir, request.user)
-        try:
-            sftp.chdir(host_dir)
-        except IOError as e:
-            messages.error(request, e)
-            return redirect("files")
+            try:
+                sftp.chdir(host_dir)
+            except IOError as e:
+                if "NoSuchFile" in "{}".format(e):
+                    host_dir = "/"
+                    try:
+                        sftp.chdir(host_dir)
+                    except IOError as e2:
+                        messages.error(request, e)
+                        messages.error(request, "Root directory: {}".format(e2))
+                        return redirect("files")
+                    else:
+                        messages.error(request, "Unable to access home folder -- showing root directory instead.")
+                else:
+                    messages.error(request, e)
+                    return redirect("files")
+        else:
+            try:
+                sftp.chdir(host_dir)
+            except IOError as e:
+                messages.error(request, e)
+                return redirect("files")
 
     default_dir = sftp.pwd
 

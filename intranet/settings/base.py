@@ -29,8 +29,8 @@ ADMINS = (
     ("Samuel Damashek", "2017sdamashe+ion@tjhsst.edu"),
 )
 
-FEEDBACK_EMAIL = "intranet+feedback@tjhsst.edu"
-APPROVAL_EMAIL = "intranet+approval@tjhsst.edu"
+FEEDBACK_EMAIL = "intranet+feedback@lists.tjhsst.edu"
+APPROVAL_EMAIL = "intranet-approval@lists.tjhsst.edu"
 
 FILES_MAX_UPLOAD_SIZE = 200*1024*1024
 FILES_MAX_DOWNLOAD_SIZE = 200*1024*1024
@@ -136,12 +136,14 @@ MIDDLEWARE_CLASSES = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "maintenancemode.middleware.MaintenanceModeMiddleware",
     "intranet.middleware.environment.KerberosCacheMiddleware",
     "intranet.middleware.threadlocals.ThreadLocalsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "intranet.middleware.ajax.AjaxNotAuthenticatedMiddleWare",
     "intranet.middleware.templates.AdminSelectizeLoadingIndicatorMiddleware",
-    "intranet.middleware.access_log.AccessLogMiddleWare"
+    "intranet.middleware.access_log.AccessLogMiddleWare",
+    "intranet.middleware.traceback.UserTracebackMiddleware"
 ]
 
 ROOT_URLCONF = "intranet.urls"
@@ -244,6 +246,7 @@ INSTALLED_APPS = (
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "maintenancemode",
     "intranet.apps",
     "intranet.apps.announcements",
     "intranet.apps.api",
@@ -353,6 +356,49 @@ LOGGING = {
     }
 }
 
+SHOW_DEBUG_TOOLBAR = os.getenv("SHOW_DEBUG_TOOLBAR", "YES") == "YES"
+
+if SHOW_DEBUG_TOOLBAR:
+    DEBUG_TOOLBAR_PATCH_SETTINGS = False
+
+    # Boolean value defines whether enabled by default
+    _panels = [
+        ("debug_toolbar.panels.versions.VersionsPanel", False),
+        ("debug_toolbar.panels.timer.TimerPanel", True),
+        # ("debug_toolbar.panels.profiling.ProfilingPanel", False),
+        ("debug_toolbar_line_profiler.panel.ProfilingPanel", False),
+        ("debug_toolbar.panels.settings.SettingsPanel", False),
+        ("debug_toolbar.panels.headers.HeadersPanel", False),
+        ("debug_toolbar.panels.request.RequestPanel", False),
+        ("debug_toolbar.panels.sql.SQLPanel", True),
+        ("debug_toolbar.panels.staticfiles.StaticFilesPanel", False),
+        ("debug_toolbar.panels.templates.TemplatesPanel", False),
+        ("debug_toolbar.panels.signals.SignalsPanel", False),
+        ("debug_toolbar.panels.logging.LoggingPanel", True),
+        ("debug_toolbar.panels.redirects.RedirectsPanel", False),
+    ]
+
+    DEBUG_TOOLBAR_CONFIG = {
+        "INTERCEPT_REDIRECTS": False,
+        "DISABLE_PANELS": [panel for panel, enabled in _panels if not enabled]
+    }
+
+
+    DEBUG_TOOLBAR_PANELS = [t[0] for t in _panels]
+
+    MIDDLEWARE_CLASSES = MIDDLEWARE_CLASSES[:-1] + [
+        "intranet.middleware.templates.StripNewlinesMiddleware",
+    ] + MIDDLEWARE_CLASSES[-1:] + [
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+    ]
+
+    INSTALLED_APPS += (
+        "debug_toolbar",
+        "debug_toolbar_line_profiler",
+    )
+
+
+MAINTENANCE_MODE = False
 
 def _get_current_commit_short_hash():
     cmd = "git rev-parse --short HEAD"
@@ -386,3 +432,7 @@ GIT = {
     "commit_date": _get_current_commit_date(),
     "commit_github_url": _get_current_commit_github_url()
 }
+
+SENIOR_GRADUATION = "June 18 2016 19:00:00"
+SENIOR_GRADUATION_YEAR = 2016
+ATTENDANCE_LOCK_HOUR = 20 # 10PM

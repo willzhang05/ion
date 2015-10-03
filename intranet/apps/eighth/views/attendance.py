@@ -11,6 +11,7 @@ import csv
 from django import http
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from formtools.wizard.views import SessionWizardView
 from reportlab.lib import colors
@@ -50,7 +51,7 @@ def should_show_activity_list(wizard):
 class EighthAttendanceSelectScheduledActivityWizard(SessionWizardView):
     FORMS = [
         ("block", BlockSelectionForm),
-        ("activity", ActivitySelectionForm),
+        ("activity", ActivitySelectionForm)
     ]
 
     TEMPLATES = {
@@ -64,7 +65,15 @@ class EighthAttendanceSelectScheduledActivityWizard(SessionWizardView):
     def get_form_kwargs(self, step):
         kwargs = {}
         if step == "block":
-            if not self.request.user.is_eighth_admin:
+            if "show_all_blocks" in self.request.GET:
+                now = datetime.now().date()
+                """ Only show blocks after September 1st of the current school year """
+                if now.month < 9:
+                    now = datetime(now.year-1, 9, 1).date()
+                else:
+                    now = datetime(now.year, 9, 1).date()
+                kwargs.update({"exclude_before_date": now})
+            elif not self.request.user.is_eighth_admin:
                 now = datetime.now().date()
                 kwargs.update({"exclude_before_date": now})
             else:
@@ -80,8 +89,8 @@ class EighthAttendanceSelectScheduledActivityWizard(SessionWizardView):
             except (EighthSponsor.DoesNotExist, AttributeError):
                 sponsor = None
 
-            if not (self.request.user.is_eighth_admin or (sponsor is None)):
-                kwargs.update({"sponsor": sponsor})
+            #if not (self.request.user.is_eighth_admin or (sponsor is None)):
+            #    kwargs.update({"sponsor": sponsor})
 
         labels = {
             "block": "Select a block",
@@ -97,10 +106,35 @@ class EighthAttendanceSelectScheduledActivityWizard(SessionWizardView):
                         self).get_context_data(form=form, **kwargs)
         context.update({"admin_page_title": "Take Attendance"})
 
+        block = self.get_cleaned_data_for_step("block")
+        if block:
+            block = block["block"]
+            try:
+                sponsor = self.request.user.eighthsponsor
+            except (EighthSponsor.DoesNotExist, AttributeError):
+                sponsor = None
+
+            if sponsor and not self.request.user.is_eighthoffice:
+                context.update({"sponsor_block": block})
+                logger.debug("sponsor block: {}".format(block))
+
+                sponsoring_filter = (Q(sponsors=sponsor) |
+                                     (Q(sponsors=None) &
+                                      Q(activity__sponsors=sponsor)))
+                sponsored_activities = (EighthScheduledActivity.objects
+                                                               .filter(block=block)
+                                                               .filter(sponsoring_filter)
+                                                               .order_by("activity__name"))
+
+                context.update({"sponsored_activities": sponsored_activities})
+                logger.debug(sponsored_activities)
+
+
         return context
 
     def done(self, form_list, **kwargs):
         logger.debug("debug called in attendance")
+
         if hasattr(self, "no_activities"):
             response = redirect("eighth_attendance_choose_scheduled_activity")
             response["Location"] += "?na=1"
@@ -194,13 +228,17 @@ def take_attendance_view(request, scheduled_activity_id):
 
     if request.user.is_eighth_admin or scheduled_activity.user_is_sponsor(request.user):
         logger.debug("User has permission to edit")
+        edit_perm = True
     else:
         logger.debug("User does not have permission to edit")
-        return render(request, "error/403.html", {
-            "reason": "You do not have permission to take attendance for this activity. You are not a sponsor."
-        }, status=403)
+        edit_perm = False
 
     if request.method == "POST":
+
+        if not edit_perm:
+            return render(request, "error/403.html", {
+                "reason": "You do not have permission to take attendance for this activity. You are not a sponsor."
+            }, status=403)
 
         if "admin" in request.path:
             url_name = "eighth_admin_take_attendance"
@@ -289,7 +327,8 @@ def take_attendance_view(request, scheduled_activity_id):
             "scheduled_activity": scheduled_activity,
             "passes": passes,
             "members": members,
-            "p": pass_users
+            "p": pass_users,
+            "no_edit_perm": not edit_perm
         }
 
         if request.user.is_eighth_admin:

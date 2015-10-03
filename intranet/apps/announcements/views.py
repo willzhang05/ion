@@ -4,23 +4,40 @@ from __future__ import unicode_literals
 import re
 import logging
 import json
+import bleach
 from django import http
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import Group
 from django.core.urlresolvers import reverse
 from django.shortcuts import render, redirect, get_object_or_404
 from intranet import settings
 from ..auth.decorators import announcements_admin_required
+from ..groups.models import Group
 from ..users.models import User
+from ..dashboard.views import dashboard_view
 from .models import Announcement, AnnouncementRequest
 from .forms import AnnouncementForm, AnnouncementRequestForm
 from .notifications import (email_send, request_announcement_email,
                             admin_request_announcement_email,
                             announcement_posted_twitter,
-                            announcement_posted_email)
+                            announcement_posted_email,
+                            announcement_approved_email)
 
 logger = logging.getLogger(__name__)
+
+@login_required
+def view_announcements(request):
+    """ Show the dashboard with only announcements.
+    """
+    return dashboard_view(request, show_widgets=False)
+
+
+@login_required
+def view_announcements_archive(request):
+    """ Show the dashboard with only announcements,
+        showing expired posts.
+    """
+    return dashboard_view(request, show_widgets=False, show_expired=True)
 
 def announcement_posted_hook(request, obj):
     """
@@ -35,9 +52,28 @@ def announcement_posted_hook(request, obj):
     if obj.notify_post:
         logger.debug("Announcement notify on")
         announcement_posted_twitter(request, obj)
-        announcement_posted_email(request, obj)
+        try:
+            notify_all = obj.notify_email_all
+        except AttributeError:
+            notify_all = False
+
+        if notify_all:
+            announcement_posted_email(request, obj, True)
+        else:
+            announcement_posted_email(request, obj)
     else:
         logger.debug("Announcement notify off")
+
+def announcement_approved_hook(request, obj, req):
+    """
+        Runs whenever an administrator approves an
+        announcement request.
+
+        obj: the Announcement object
+        req: the AnnouncementRequest object
+
+    """
+    announcement_approved_email(request, obj, req)
 
 
 @login_required
@@ -51,25 +87,29 @@ def request_announcement_view(request):
         logger.debug(form)
         logger.debug(form.data)
         if form.is_valid():
-            obj = form.save(commit=True)
-            obj.user = request.user
-            obj.save()
-            teacher_ids = form.data["teachers_requested"]
-            # don't interpret as a character array
-            if type(teacher_ids) != list:
-                teacher_ids = [teacher_ids]
-            logger.debug(teacher_ids)
-            teachers = User.objects.filter(id__in=teacher_ids)
+            teacher_objs = form.cleaned_data["teachers_requested"]
+            logger.debug("teacher objs:")
+            logger.debug(teacher_objs)
 
-            ann = AnnouncementRequest.objects.get(id=obj.id)
-            logger.debug(teachers)
-            for teacher in teachers:
-                ann.teachers_requested.add(teacher)
-            ann.save()
+            if len(teacher_objs) > 2:
+                messages.error(request, "Please select a maximum of 2 teachers to approve this post.")
+            else:
+                obj = form.save(commit=True)
+                obj.user = request.user
+                # SAFE HTML
+                obj.content = bleach.linkify(obj.content)
 
-            request_announcement_email(request, form, obj)
-            messages.success(request, "Successfully added announcement request.")
-            return redirect("index")
+                obj.save()
+
+                ann = AnnouncementRequest.objects.get(id=obj.id)
+                logger.debug(teacher_objs)
+                for teacher in teacher_objs:
+                    ann.teachers_requested.add(teacher)
+                ann.save()
+
+                request_announcement_email(request, form, obj)
+                messages.success(request, "Successfully added announcement request.")
+                return redirect("index")
         else:
             messages.error(request, "Error adding announcement request")
     else:
@@ -97,6 +137,9 @@ def approve_announcement_view(request, req_id):
         form = AnnouncementRequestForm(request.POST, instance=req)
         if form.is_valid():
             obj = form.save(commit=True)
+            # SAFE HTML
+            obj.content = bleach.linkify(obj.content)
+            obj.save()
             if "approve" in request.POST:
                 obj.teachers_approved.add(request.user)
                 obj.save()
@@ -141,6 +184,8 @@ def admin_approve_announcement_view(request, req_id):
         form = AnnouncementRequestForm(request.POST, instance=req)
         if form.is_valid():
             req = form.save(commit=True)
+            # SAFE HTML
+            req.content = bleach.linkify(req.content)
             if "approve" in request.POST:
                 groups = []
                 if "groups" in request.POST:
@@ -160,6 +205,7 @@ def admin_approve_announcement_view(request, req_id):
                 req.posted_by = request.user
                 req.save()
 
+                announcement_approved_hook(request, announcement, req)
                 announcement_posted_hook(request, announcement)
 
                 messages.success(request, "Successfully approved announcement request. It has been posted.")
@@ -194,6 +240,8 @@ def add_announcement_view(request):
         if form.is_valid():
             obj = form.save()
             obj.user = request.user
+            # SAFE HTML
+            obj.content = bleach.linkify(obj.content)
             obj.save()
             announcement_posted_hook(request, obj)
             messages.success(request, "Successfully added announcement.")
@@ -228,7 +276,10 @@ def modify_announcement_view(request, id=None):
         announcement = Announcement.objects.get(id=id)
         form = AnnouncementForm(request.POST, instance=announcement)
         if form.is_valid():
-            form.save()
+            obj = form.save()
+            # SAFE HTML
+            obj.content = bleach.linkify(obj.content)
+            obj.save()
             messages.success(request, "Successfully modified announcement.")
             return redirect("index")
         else:

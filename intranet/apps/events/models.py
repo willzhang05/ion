@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from ..users.models import User
-from ..eighth.models import EighthScheduledActivity
-from ..announcements.models import Announcement
-from datetime import datetime
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group as DjangoGroup
 from django.db import models
 from django.db.models import Manager, Q
+from ..users.models import User
+from ..groups.models import Group
+from ..eighth.models import EighthScheduledActivity
+from ..announcements.models import Announcement
+from .notifications import event_approval_request
+from datetime import datetime
 
 class Link(models.Model):
     """A link about an item (Facebook event link, etc).
@@ -26,12 +28,47 @@ class EventManager(Manager):
 
         """
 
-        return Event.objects.filter(Q(groups__in=user.groups.all()) |
-                                    Q(groups__isnull=True) |
-                                    Q(user=user))
+        return (Event.objects.filter(approved=True)
+                             .filter(Q(groups__in=user.groups.all()) |
+                                     Q(groups__isnull=True) |
+                                     Q(user=user)))
 
 class Event(models.Model):
     """An event available to the TJ community.
+
+    title
+        The title for the event
+    description
+        A description about the event
+    links
+        Not currently used
+    created_time
+        Time created (automatically set)
+    last_modified_time
+        Time last modified (automatically set)
+    time
+        The date and time of the event
+    location
+        Where the event is located
+    user
+        The user who created the event.
+    scheduled_activity
+        An EighthScheduledActivity that should be linked with the event.
+    announcement
+        An Announcement that should be linked with the event.
+    groups
+        Groups that the event is visible to.
+    attending
+        A ManyToManyField of User objects that are attending the event.
+    approved
+        Boolean, whether the event has been approved and will be displayed.
+    approved_by
+        ForeignKey to User object, the user who approved the event.
+    rejected
+        Boolean, whether the event was rejected and shouldn't be shown in the
+        list of events that need to be approved.
+    rejected_by
+        ForeignKey to User object, the user who rejected the event.
     """
     objects = EventManager()
 
@@ -43,14 +80,19 @@ class Event(models.Model):
 
     time = models.DateTimeField()
     location = models.CharField(max_length=100)
-    user = models.ForeignKey(User)
+    user = models.ForeignKey(User, null=True)
 
     scheduled_activity = models.ForeignKey(EighthScheduledActivity, null=True, blank=True)
-    announcement = models.ForeignKey(Announcement, null=True, blank=True)
+    announcement = models.ForeignKey(Announcement, null=True, blank=True, related_name="event")
     
-    groups = models.ManyToManyField(Group, blank=True)
+    groups = models.ManyToManyField(DjangoGroup, blank=True)
 
     attending = models.ManyToManyField(User, blank=True, related_name="attending")
+
+    approved = models.BooleanField(default=False)
+    rejected = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(User, null=True, related_name="approved_event")
+    rejected_by = models.ForeignKey(User, null=True, related_name="rejected_event")
 
     def show_fuzzy_date(self):
         """
@@ -71,7 +113,18 @@ class Event(models.Model):
         return True
 
 
+    def created_hook(self, request):
+        """Run when an event is created.
+        """
+        if not request.user.has_admin_permission('events'):
+            # Send approval email
+            event_approval_request(request, self)
+
+
 
 
     def __unicode__(self):
-        return "{} - {}".format(self.title, self.time)
+        if not self.approved:
+            return "UNAPPROVED - {} - {}".format(self.title, self.time)
+        else:
+            return "{} - {}".format(self.title, self.time)

@@ -1,0 +1,446 @@
+{% extends "page_with_nav.html" %}
+{% load staticfiles %}
+{% load math %}
+{% load strings %}
+
+{% block title %}
+    {{ block.super }} - Eighth Period
+{% endblock %}
+
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/eighth.common.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/eighth.signup.css' %}" />
+    {% if not real_user.is_eighth_admin %}
+    <style type="text/css">
+    #activity-list li[data-administrative=true] {
+        display: none;
+    }
+    dl.activityid {
+        display: none;
+    }
+    </style>
+    {% endif %}
+
+    <link rel="stylesheet" type="text/css" href="{% static 'css/eighth.admin.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/profile.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/eighth.profile.css' %}" />
+{% endblock %}
+
+{% block js %}
+    {{ block.super }}
+    <script type="text/javascript" src="{% static 'js/vendor/jquery.scrollto.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/vendor/json2.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/vendor/underscore-min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/vendor/backbone-min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/vendor/spin.min.js' %}"></script>
+    <script type="text/javascript">
+        window.loadModels = function() {
+            window.activityModels = new eighth.ActivityList();
+            jsonData = $.parseJSON("{% if no_blocks %}[]{% else %}{{ activities_list }}{% endif %}");
+
+            data = _.values(jsonData);
+
+            if(data.length < 1) {
+                console.log("Empty dataset")
+                $(function() {
+                    $("ul.all-activities").append("<p>There are no activities available for signup at this time.</p>");
+                });
+            }
+            activityModels.reset(data);
+            _.each(activityModels.models, function(activity) {
+                activity.attributes.selected = (activity.attributes.id == "{{ active_block_current_signup }}");
+            });
+
+            window.activeBlockLocked = {% if active_block.locked %}true{% else %}false{% endif %};
+        }
+        window.isEighthAdmin = {% if request.user.is_eighth_admin %}true{% else %}false{% endif %};
+        window.blockIsToday = {% if active_block.is_today %}true{% else %}false{% endif %};
+        var pn = location.pathname.substring(7);
+        window.isDefaultPage = (pn == "" || pn == "/" || pn == "/signup" || pn == "/signup/");
+    </script>
+    <script type="text/javascript" src="{% static 'js/eighth/responsive.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/eighth/signupUI.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/eighth/signup.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/eighth/signup.search.js' %}"></script>
+    <script type="text/javascript">
+    $(function() {
+        var width = $(window).width();
+        var height = $(window).height();
+        if(width <= 500 && height <= 745) {
+            setTimeout(function() {
+                $(".eighth-signup .switch").click();
+            }, 450);
+        }
+    })
+    </script>
+{% endblock %}
+
+{% block main %}
+    <script type="text/template" id="activity-list-row-template">
+        {% verbatim %}
+            <span class="activity-icons">
+                <span class="activity-icon fav <% if (favorited) { %>fav-sel<% } %>"></span>
+                <% if (cancelled) { %>
+                    <span class="activity-icon cancelled"></span>
+                <% } else if (restricted_for_user) { %>
+                    <span class="activity-icon restricted"></span>
+                <% } else { %>
+                    <% var pieNumber = Math.min(Math.round(roster.count / roster.capacity * 10), 10); %>
+                    <span class="activity-icon pie-<%= pieNumber %>"></span>
+                <% } %>
+            </span>
+            <% var full_name = name_with_flags_for_user; %>
+            <span class="activity-name" title="<%= full_name %>">
+                <%= name %>
+                <% if (title) { %>
+                    - <%= title %>
+                <% } %>
+
+                <% if (special) { %>
+                    <span class="badge green">Special</span>
+                <% } %>
+
+                <% if (cancelled) { %>
+                    <span class="badge darkred">CANCELLED</span>
+                <% } %>
+
+                <% if (restricted_for_user) { %>
+                    <span class="badge purple">Restricted</span>
+                <% } %>
+
+                <% if (sticky) { %>
+                    <span class="badge orange">Sticky</span>
+                <% } %>
+
+                <% if (both_blocks) { %>
+                    <span class="badge blue">Both Blocks</span>
+                <% } %>
+
+                <% if (administrative) { %>
+                    <span class="badge">Admin</span>
+                <% } %>
+
+                <% if (presign) { %>
+                    <span class="badge yellow">48-hr</span>
+                <% } %>
+
+                <% if (blocks.length == total_num_blocks) { %>
+                    <span class="badge">ALL</span>
+                <% } else { %>
+                    <% var blocks_all = ""; %>
+                    <% _.each(blocks, function(b) { blocks_all += b.id+", "; }); %>
+                    <% blocks_all = blocks_all.substring(0, blocks_all.length-2); %>
+                    <span class="badge"><%= blocks_all %></span>
+                <% } %>
+
+            </span>
+            <% var sponsors_all = ""; %>
+            <% _.each(sponsors, function(sp) { sponsors_all += sp+", "; }); %>
+            <% sponsors_all = sponsors_all.substring(0, sponsors_all.length-2); %>
+            <span class="activity-sponsors" title="<%= sponsors_all %>">
+
+                <span class="activity-ids">
+                    <%= aid %>; #<%= this.model.attributes.scheduled_activity %> &mdash;
+                </span>
+                <%= sponsors_all %>
+            </span>
+
+        {% endverbatim %}
+    </script>
+
+    <script type="text/template" id="activity-details-template">
+        {% verbatim %}
+        <h3>
+            <%= name %><% if (title) { %> - <%= title %><% } %>
+        </h3>
+
+        <% if (cancelled) { %>
+            <span class="badge darkred clickable" data-append-search="is:c">CANCELLED</span>
+        <% } %>
+
+        <% if (special) { %>
+            <span class="badge green clickable" data-append-search="is:sp">Special</span>
+        <% } %>
+
+        <% if (restricted_for_user) { %>
+            <span class="badge purple clickable" data-append-search="is:r">Restricted</span>
+        <% } %>
+
+        <% if (sticky) { %>
+            <span class="badge orange clickable" data-append-search="is:st">Sticky</span>
+        <% } %>
+
+        <% if (both_blocks) { %>
+            <span class="badge blue clickable" data-append-search="is:b">Both Blocks</span>
+        <% } %>
+
+        <% if (administrative) { %>
+            <span class="badge clickable" data-append-search="is:a">Administrative</span>
+        <% } %>
+
+        <% if (presign) { %>
+            <span class="badge yellow clickable" data-append-search="is:p">48-hr Presign</span>
+        <% } %>
+
+        <% scheduled_activity_id = this.model.attributes.scheduled_activity %>
+
+        <dl class="activityid">
+            <dt>Activity ID:</dt>
+            <dd><%= aid %></dd>
+        </dl>
+
+        <dl class="scheduledid">
+            <dt>Scheduled ID:</dt>
+            <dd><%= scheduled_activity_id %></dd>
+        </dl>
+
+        <dl>
+            <% rooms = _.uniq(rooms)%>
+            <dt>Room<% if (rooms.length > 1) { %>s<% } %>:</dt>
+            <dd>
+
+                <% if (rooms.length != 0) {%>
+                        <%_.each(rooms, function(r, i) { if (i + 1 != rooms.length) {%><%= r %>, <%} else { %><%= r %><%} })%>
+                <%} else {%>
+                    None
+                    <br />
+                <%}%>
+            </dd>
+
+            <% sponsors = _.uniq(sponsors) %>
+            <dt>Sponsor<% if (sponsors.length > 1) { %>s<% } %>:</dt>
+            <dd>
+                <% if (sponsors.length != 0) {%>
+                        <%_.each(sponsors, function(s, i) { if (i + 1 != sponsors.length) {%><%= s %>, <%} else { %><%= s %><%} })%>
+                <%} else {%>
+                    None
+                    <br />
+                <%}%>
+            </dd>
+
+            <dt>Scheduled On:</dt>
+            <dd><br />
+            <% _.each(blocks, function(b) { %>
+                <b><%= b.id %></b>: <%= b.date %> <%= b.block_letter %> Block<br />
+            <% }); %>
+            </dd>
+
+            <% if (both_blocks) {%>
+                <div>This activity runs both blocks.</div>
+            <%}%>
+
+            <% if (comments) {%>
+                <br />
+                <dt>Comments:</dt><dd><%= comments %></dd>
+            <%}%>
+
+            <% if (description) {%>
+                <br />
+                <p><%= description %></p>
+            <%}%>
+
+
+            <div id="signup-section">
+                <% var showingRosterButton = false %>
+                <% if (!cancelled) {%>
+                    <% if (!selected) {%>
+                        <% if (roster.capacity == -1 || (roster.count < roster.capacity) || isEighthAdmin) {%>
+                            <button id="signup-button">
+                                Sign Up
+                            </button>
+                            <div id="signup-spinner-container">
+                                <div id="signup-spinner"></div>
+                            </div>
+                        <%} else { %>
+                            <strong>This activity is full.</strong>
+                        <%}%>
+                    <%} else {%>
+                        <% if (display_text.length > 0) {%>
+                            <strong><%= display_text %></strong><br /><br />
+                        <% } %>
+                    <%}%>
+                <%}%>
+
+                <div class="error-feedback">
+                </div>
+            </div>
+            <div id="roster-section">
+            </div>
+        </dl>
+        {% endverbatim %}
+    </script>
+
+
+
+    <div class="primary-content eighth-signup eighth-profile-signup">
+        {% if request.user.is_eighth_admin %}
+            <div class="eighth-header">
+                {% include "eighth/admin/start_date.html" %}
+            </div>
+        {% endif %}
+
+        <section class="user-info-eighth user-info">
+        <form action="{% url 'eighth_signup' %}" method="GET">
+
+            <input type="hidden" name="user" value="{{ profile_user.id }}" />
+            <h3>
+                Eighth Period - <a href="{% url 'eighth_profile' user.id %}">{{ user.full_name }} ({{ user.graduation_year }})</a>
+            </h3>
+            {% if skipped_ahead %}
+                There were no blocks the week of {{ date_now }}. Skipped to the next block in the future.
+            {% endif %}
+            {% if not profile_user.is_student %}
+                <br /><b>This user is not a student. They may not be signed up for activities.</b>
+            {% endif %}
+            <table class="eighth-table {% if eighth_schedule %}zebra{% endif %}">
+            <thead>
+                <tr>
+                    <td class="button-container" colspan="7" style="text-align: center">
+                        {% if show_eighth_profile_link %}
+                            <a href="{% url 'eighth_profile' profile_user.id %}" class="button">View Eighth Profile</a> &nbsp;
+                        {% endif %}
+                        <a href="/profile/{{ profile_user.id }}?full=1" class="button">View All Info</a> &nbsp;
+                        {% if request.user.is_eighth_admin %}
+                            <a href="{% url 'eighth_edit_profile' profile_user.id %}" class="button">Edit Info</a> &nbsp;
+                        {% endif %}
+                                </td>
+                </tr>
+                <tr class="desc">
+                    <th colspan="999">Activities scheduled on {{ blocks|length }} blocks:</th>
+                </tr>
+            </thead>
+            <tr>
+            {% for block in blocks %}
+                <td>
+                    <b>Block ID: {{ block.id }}</b><br />
+                    {{ block.date|date:'D, N j, Y' }} {{ block.block_letter }} Block
+                </td>
+            {% endfor %}
+            </tr>
+        </table>
+    </form>
+    </section>
+
+
+        <div class="day-picker" style="display: none">
+            <span class="day-picker-buttons">
+            </span>
+            <ul class="days-container">
+            </ul>
+        </div>
+
+        <div class="middle-wrapper">
+            <div class="middle">
+                <div class="block-title">
+                    <h2>
+                        {% if active_block.locked %}
+                            <i class="fa fa-lock"></i>
+                        {% endif %}
+                        {{ active_block.date|date:"l, F j, Y" }}
+                    </h2>
+                    <h4>
+                        {% if active_block.block_letter %}
+                            {% if active_block.block_letter|contains_digit %}
+                                Block {{ active_block.block_letter }}
+                            {% else %}
+                                {{ active_block.block_letter }} Block
+                            {% endif %}
+                        {% endif %}
+                    </h4>
+                </div>
+                {% if user.is_eighth_admin %}
+                <div class="unsignup">
+                    <button id="unsignup-button" data-bid="{% for b in blocks %}{{ b.id }}{% if not forloop.last %},{% endif %}{% endfor %}" data-uid="{{ user.id }}">Remove Signups for All Blocks</button>
+                </div>
+                {% endif %}
+
+                <div class="switch">
+                    <i class="fa fa-chevron-up up"></i>
+                    <i class="fa fa-chevron-down down"></i>
+                </div>
+            </div>
+        </div>
+
+        <div id="activity-picker" class="{% if request.user != user %}different-user{% endif %}">
+            <div class="search-wrapper">
+                <i class="fa fa-search"></i>
+                <span>
+                    <input type="search" placeholder="Search names, sponsors, rooms..." disabled>
+                </span>
+            </div>
+            <div class="backbtn">
+                <i class="fa fa-chevron-left"></i>
+            </div>
+            <div id="activity-list" data-toggle-favorite-endpoint="{% url 'eighth_toggle_favorite' %}">
+                <h5 class="sticky-header favorites-header">Favorites</h5>
+                <ul class="favorite-activities"></ul>
+                <h5 class="sticky-header">All</h5>
+                <ul class="all-activities"></ul>
+            </div>
+            <div id="activity-detail" data-bid="{% for b in blocks %}{{ b.id }}{% if not forloop.last %},{% endif %}{% endfor %}" data-uid="{{ user.id }}" data-signup-endpoint="{% url 'eighth_multi_signup' %}">
+                <div class="empty-state">
+                    <center>
+                        <div>
+                            <img src="{% url 'profile_picture' profile_user.id %}" alt="Preferred Picture" />
+                        </div>
+                        <h2 title="{{ profile_user.ion_username }} ({{ profile_user.ion_id }})">
+                            {{ profile_user.full_name }}
+                            {% if profile_user.nickname %}({{ profile_user.nickname }}){% endif %}
+                        </h2>
+                        <h3>
+                        {% if profile_user.is_student %}
+                            {% if profile_user.graduation_year %}
+                                {{ profile_user.grade|capfirst }}
+                                ({{ profile_user.graduation_year }})
+                            {% else %}
+                                Student
+                            {% endif %}
+                            {% if profile_user.absence_count > 0 or user.is_eighth_admin %}
+                                - <a href="{% url 'eighth_absences' %}?user={{ profile_user.id }}" style="color: red">
+                                    {{ profile_user.absence_count }} absence{{ profile_user.absence_count|pluralize }}
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            Staff
+                        {% endif %}
+                        </h3>
+
+                        <table class="user-info-contact">
+                            {% if profile_user.display_name %}
+                                <tr>
+                                    <th>Full Name</th>
+                                    <td>{{ profile_user.display_name }}</td>
+                                </tr>
+                            {% endif %}
+                            <tr>
+                                <th>Username</th>
+                                <td>{{ profile_user.ion_username }}</td>
+                            </tr>
+                            {% if profile_user.student_id %}
+                                <tr>
+                                    <th>Student ID</th>
+                                    <td>{{ profile_user.student_id }}</td>
+                                </tr>
+                            {% endif %}
+
+                            {% if profile_user.user_type == "tjhsstStudent" and profile_user.counselor %}
+                                <tr>
+                                    <th>Counselor</th>
+                                    <td> {{ profile_user.counselor.last_name }} </td>
+                                </div>
+                            {% endif %}
+                            {% if request.user.is_eighth_admin %}
+                                <tr class="comments">
+                                    <th>Comments</th>
+                                    <td style="width: 400px">{{ profile_user.admin_comments|safe|linebreaksbr }}</td>
+                                </tr>
+                            {% endif %}
+
+                        </table>
+                    </center>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

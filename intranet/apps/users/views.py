@@ -5,12 +5,14 @@ from six.moves import cStringIO as StringIO
 import io
 import logging
 import os
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse
 from django.shortcuts import render, redirect
-from .models import User, Grade
+from .models import User, Grade, Class
 from ..eighth.models import EighthBlock, EighthSignup, EighthScheduledActivity, EighthSponsor
 from intranet import settings
+from intranet.db.ldap_db import LDAPConnection, LDAPFilter
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +31,21 @@ def profile_view(request, user_id=None):
         return redirect("eighth_profile", user_id=user_id)
 
     if user_id is not None:
-        profile_user = User.get_user(id=user_id)
-        if profile_user is None:
+        try:
+            profile_user = User.get_user(id=user_id)
+            
+            if profile_user is None:
+                raise Http404
+        except User.DoesNotExist:
             raise Http404
     else:
         profile_user = request.user
+
+
+    if "clear_cache" in request.GET and request.user.is_eighth_admin:
+        profile_user.clear_cache()
+        messages.success(request, "Cleared cache for {}".format(profile_user))
+        return redirect("/profile/{}".format(profile_user.id))
 
     num_blocks = 6
 
@@ -92,7 +104,10 @@ def picture_view(request, user_id, year=None):
             specified, use the preferred picture.
 
     """
-    user = User.get_user(id=user_id)
+    try:
+        user = User.get_user(id=user_id)
+    except User.DoesNotExist:
+        raise Http404
     default_image_path = os.path.join(settings.PROJECT_ROOT, "static/img/default_profile_pic.png")
 
     if user is None:
@@ -149,3 +164,93 @@ def picture_view(request, user_id, year=None):
         response.write(img)
 
         return response
+
+@login_required
+def class_section_view(request, section_id):
+    c = Class(id=section_id)
+    try:
+        name = c.name
+    except Exception:
+        raise Http404
+
+    attrs = {
+        "name": c.name,
+        "students": sorted(c.students, key=lambda x: (x.last_name, x.first_name)),
+        "teacher": c.teacher,
+        "quarters": c.quarters,
+        "periods": c.periods,
+        "course_length": c.course_length,
+        "room_number": c.room_number,
+        "class_id": c.class_id,
+        "section_id": c.section_id,
+        "sections": c.sections
+    }
+
+    context = {
+        "class": attrs
+    }
+
+    return render(request, "users/class.html", context)
+
+@login_required
+def class_room_view(request, room_id):
+    c = LDAPConnection()
+    room_id = LDAPFilter.escape(room_id)
+    
+    classes = c.search("ou=schedule,dc=tjhsst,dc=edu", 
+                       "(&(objectClass=tjhsstClass)(roomNumber={}))".format(room_id),
+                       ["tjhsstSectionId"]
+    )
+
+
+    if len(classes) > 0:
+        schedule = []
+        for row in classes:
+            class_dn = row[0]
+            class_object = Class(dn=class_dn)
+            sortvalue = class_object.sortvalue
+            schedule.append((sortvalue, class_object))
+
+        ordered_schedule = sorted(schedule, key=lambda e: e[0])
+        classes_objs = list(zip(*ordered_schedule)[1]) # The class objects
+    else:
+        classes_objs = []
+        raise Http404
+
+    context = {
+        "room": room_id,
+        "classes": classes_objs
+    }
+
+    return render(request, "users/class_room.html", context)
+
+@login_required
+def all_classes_view(request):
+    c = LDAPConnection()
+    
+    classes = c.search("ou=schedule,dc=tjhsst,dc=edu", 
+                       "objectClass=tjhsstClass",
+                       ["tjhsstSectionId"]
+    )
+
+    logger.debug("{} classes found.".format(len(classes)))
+
+    if len(classes) > 0:
+        schedule = []
+        for row in classes:
+            class_dn = row[0]
+            class_object = Class(dn=class_dn)
+            sortvalue = class_object.sortvalue
+            schedule.append((sortvalue, class_object))
+
+        ordered_schedule = sorted(schedule, key=lambda e: e[0])
+        classes_objs = list(zip(*ordered_schedule)[1]) # The class objects
+    else:
+        classes_objs = []
+        raise Http404
+
+    context = {
+        "classes": classes_objs
+    }
+
+    return render(request, "users/all_classes.html", context)

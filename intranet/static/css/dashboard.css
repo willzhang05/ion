@@ -5,6 +5,10 @@
     margin-bottom: 100px;
 }
 
+.announcements.no-widgets {
+    padding-right: 0;
+}
+
 .announcements-header {
     height: 38px;
     margin-bottom: 4px;
@@ -87,7 +91,7 @@
  * mainly affects student admins
  */
 ul.nav {
-    margin-bottom: 100px;
+    margin-bottom: 100%;
 }
 
 /*

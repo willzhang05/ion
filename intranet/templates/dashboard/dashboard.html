@@ -3,7 +3,7 @@
 {% load dates %}
 
 {% block title %}
-    {{ block.super}} - Dashboard
+    {{ block.super }} - {{ dashboard_title }}
 {% endblock %}
 
 {% block css %}
@@ -20,6 +20,7 @@
 
     <script type="text/javascript" src="{% static 'js/dashboard/eighth-widget.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/schedule.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/dashboard/common.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/dashboard/announcements.js' %}"></script>
 
     <style type="text/css">
@@ -35,22 +36,36 @@
 {% endblock %}
 
 {% block main %}
+
+{% if show_widgets %}
 <div class="widgets{% if eighth_sponsor and request.user.is_student %} student-sponsor{% endif %}">
-{% if request.user.is_student %}
-    {% include "eighth/signup_widget.html" %}
-{% endif %}
-{% if request.user.is_teacher or eighth_sponsor %}
-    {% include "eighth/sponsor_widget.html" %}
-{% endif %}
+    {% if request.user.is_student %}
+        {% include "eighth/signup_widget.html" %}
+    {% endif %}
+    {% if request.user.is_teacher or eighth_sponsor %}
+        {% include "eighth/sponsor_widget.html" %}
+    {% endif %}
+    {% include "schedule/widget.html" %}
 
-{% include "schedule/widget.html" %}
+    <button class="widget extra-widgets-show">Show more widgets</button>
+    {% include "dashboard/birthdays.html" %}
+    {% include "dashboard/links.html" %}
+    
+    {% if request.user.grade.number == 12 %}
+        {% include "dashboard/seniors.html" %}
+    {% endif %}
 </div>
+{% endif %}
 
-<div class="announcements primary-content">
+<div class="announcements primary-content{% if not show_widgets %} no-widgets{% endif %}">
     <div class="announcements-header">
-        <h2>Announcements</h2>
+        <h2>{{ dashboard_header }}</h2>
 
             <span class="announcements-icon-wrapper">
+            {% if show_expired or not show_widgets %}
+                <a href="{% url 'index' %}" class="button" style="float:left"><i class="fa fa-arrow-left" style="width: 11px"></i> Dashboard</a>
+                &nbsp;
+            {% endif %}
             {% if request.user.is_announcements_admin %}
                 <a class="button announcement-add" href="{% url 'add_announcement' %}">
                     <i class="fa fa-plus"></i>
@@ -100,11 +115,15 @@
             </div>
         {% endfor %}
 
+        {% if start_num == 0 %}
+            <a href="{% url 'announcements_archive' %}" class="button" style="float:left"><i class="fa fa-archive" style="width: 13px"></i> View Archive</a>
+        {% endif %}
+
         {% if start_num > 0 %}
-            <a href="?start={{ prev_page }}" class="button" style="float:left">&larr; Newer Posts</a>
+            <a href="{% url 'view_announcements' %}?start={{ prev_page }}" class="button" style="float:left">&larr; Newer Posts</a>
         {% endif %}
         {% if more_announcements %}
-            <a href="?start={{ end_num }}" class="button" style="float:right">Older Posts &rarr;</a>
+            <a href="{% url 'view_announcements' %}?start={{ end_num }}" class="button" style="float:right">Older Posts &rarr;</a>
         {% endif %}
     </div>
 </div>

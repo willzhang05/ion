@@ -158,9 +158,9 @@ $(function() {
                     $(".current-day .both-blocks .selected-activity").html("<span class='no-activity-selected'>\nNo activity selected</span>").attr("title", "");
                     $(".current-day .both-blocks").removeClass("both-blocks");
 
-                    $(".current-day .blocks a[data-bid='" + bid + "'] .block .selected-activity").text("\n" + activity.attributes.name_with_flags_for_user).attr("title", activity.attributes.name_with_flags_for_user);
+                    $(".current-day .blocks a[data-bid='" + bid + "'] .block .selected-activity").text("\n" +  $('<textarea />').html(activity.attributes.name_with_flags_for_user).text()).attr("title", activity.attributes.name_with_flags_for_user);
                 } else {
-                    $(".current-day .selected-activity").text("\n" + activity.attributes.name_with_flags_for_user).attr("title", activity.attributes.name_with_flags_for_user);
+                    $(".current-day .selected-activity").text("\n" + $('<textarea />').html(activity.attributes.name_with_flags_for_user).text()).attr("title", activity.attributes.name_with_flags_for_user);
                     $(".current-day .block").addClass("both-blocks");
                 }
 
@@ -230,6 +230,8 @@ $(function() {
                         $("#signup-button").addClass("force");
                         $("#signup-button").text("Force Sign Up");
                     }
+                } else if(xhr.status == 401) {
+                    location.reload();
                 } else {
                     console.error(xhr.responseText);
                     if (xhr.status == 401) {
