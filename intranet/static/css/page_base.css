@@ -471,7 +471,7 @@ ul.dropdown-menu.absence-notification .arrow {
     display: block;
     width: 28px;
     height: 28px;
-    background-image: url("/static/img/icons.png");
+    /*background-image: url("/static/img/icons.png");*/
     background-size: 168px 84px; /*retinafy w/ this*/
     margin-left: auto;
     margin-right: auto;
@@ -497,42 +497,66 @@ ul.nav li a:hover .fa-nav-icon {
 
 .dashboard-icon {
     background-position: 0 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/tachometer.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/tachometer.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .dashboard-icon {
-    background-position: 0 28px;
+    background-color: white;
 }
 
 .nav li:not(.selected) a:hover .dashboard-icon {
-    background-position: 0 56px;
+    background-color: rgb(0, 72, 171);
 }
 
 .eighth-icon {
-    background-position: -28px 0;
+    background-position: 0 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/eighth.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/eighth.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .eighth-icon {
-    background-position: -28px 28px;
+    background-color: white;
 }
 
 .nav li:not(.selected) a:hover .eighth-icon {
-    background-position: -28px 56px;
+    background-color: rgb(0, 72, 171);
 }
 
 .events-icon {
-    background-position: -56px 0;
+    background-position: 0 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/calendar.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/calendar.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .events-icon {
-    background-position: -56px 28px;
+    background-color: white;
 }
 
 .nav li:not(.selected) a:hover .events-icon {
-    background-position: -56px 56px;
+    background-color: rgb(0, 72, 171);
 }
 
-.groups-icon {
-    background-position: -84px 0;
+/*.groups-icon {
+    background-position: 0 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/users.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/users.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .groups-icon {
@@ -541,30 +565,40 @@ ul.nav li a:hover .fa-nav-icon {
 
 .nav li:not(.selected) a:hover .groups-icon {
     background-position: -84px 56px;
-}
+}*/
 
 .polls-icon {
-    background-position: -112px 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/check-square-o.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/check-square-o.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .polls-icon {
-    background-position: -112px 28px;
+    background-color: rgb(0, 72, 171);
 }
 
 .nav li:not(.selected) a:hover .polls-icon {
-    background-position: -112px 56px;
+    background-color: rgb(0, 72, 171);
 }
 
 .files-icon {
-    background-position: -140px 0;
+    background-size: 100%;
+    -webkit-mask: url("/static/img/icons/folder-open.svg") no-repeat 100% 100%;
+  	mask: url("/static/img/icons/folder-open.svg") no-repeat 100% 100%;
+  	-webkit-mask-size: cover;
+  	mask-size: cover;
+  	background-color: rgb(70, 70, 70);
 }
 
 .nav .selected .files-icon {
-    background-position: -140px 28px;
+    background-color: rgb(0, 72, 171);
 }
 
 .nav li:not(.selected) a:hover .files-icon {
-    background-position: -140px 56px;
+    background-color: rgb(0, 72, 171);
 }
 
 .primary-content {
