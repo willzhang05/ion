@@ -577,7 +577,7 @@ ul.nav li a:hover .fa-nav-icon {
 }
 
 .nav .selected .polls-icon {
-    background-color: rgb(0, 72, 171);
+    background-color: white;
 }
 
 .nav li:not(.selected) a:hover .polls-icon {
@@ -594,7 +594,7 @@ ul.nav li a:hover .fa-nav-icon {
 }
 
 .nav .selected .files-icon {
-    background-color: rgb(0, 72, 171);
+    background-color: white;
 }
 
 .nav li:not(.selected) a:hover .files-icon {
